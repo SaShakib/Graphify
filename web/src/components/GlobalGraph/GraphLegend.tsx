@@ -14,6 +14,19 @@ export function GraphLegend() {
           <span>{EDGE_LABEL[kind]}</span>
         </div>
       ))}
+      <div className="graph-legend-title graph-legend-title-spaced">Node roles</div>
+      <div className="graph-legend-row">
+        <span className="graph-legend-node-sample role-entry" />
+        <span>entry point — nothing calls it</span>
+      </div>
+      <div className="graph-legend-row">
+        <span className="graph-legend-node-sample role-leaf" />
+        <span>leaf — calls nothing itself</span>
+      </div>
+      <div className="graph-legend-row">
+        <span className="graph-legend-node-sample role-dimmed" />
+        <span>outside current scope</span>
+      </div>
     </div>
   )
 }

@@ -1,5 +1,4 @@
 import { useMemo } from "react"
-import { useNavigate } from "react-router-dom"
 import { Background, Controls, ReactFlow, type Edge as RFEdge, type NodeTypes } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
 import type { CallEdgeEntry, Symbol } from "../../api/types"
@@ -21,14 +20,14 @@ export function LocalSymbolGraph({
   callers: CallEdgeEntry[]
   calls: CallEdgeEntry[]
 }) {
-  const navigate = useNavigate()
-
   const { nodes, edges } = useMemo(() => {
     const centerNode: SymbolFlowNode = {
       id: symbol.id,
       type: "symbol",
       position: { x: COL_GAP, y: Math.max(callers.length, calls.length, 1) * NODE_HEIGHT * 0.5 },
-      data: { label: symbol.name, kind: symbol.kind, filePath: symbol.filePath, isCenter: true },
+      // preloaded: the page already fetched this symbol's full detail, so
+      // clicking the center node to expand it needs no extra request.
+      data: { label: symbol.name, kind: symbol.kind, filePath: symbol.filePath, isCenter: true, preloaded: symbol },
     }
 
     const callerNodes: SymbolFlowNode[] = callers.map((c, i) => ({
@@ -74,12 +73,15 @@ export function LocalSymbolGraph({
   return (
     <div className="local-symbol-graph">
       <ReactFlow
+        // Same fix as GlobalGraph: `fitView` only fits once on mount, and
+        // this component stays mounted when navigating caller/callee links
+        // between symbols (the route param changes, not the component) —
+        // without a key, the second symbol's graph renders at the first
+        // symbol's stale camera position.
+        key={symbol.id}
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
-        onNodeClick={(_, node) => {
-          if (node.id !== symbol.id) navigate(`/symbol/${encodeURIComponent(node.id)}`)
-        }}
         fitView
         proOptions={{ hideAttribution: true }}
         minZoom={0.3}

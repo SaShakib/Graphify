@@ -46,6 +46,70 @@ func TestBuildResolvesCallsAndContains(t *testing.T) {
 	}
 }
 
+func TestResolveCallNeverCrossesLanguageFamilies(t *testing.T) {
+	// Regression test: Go's "os.Stat(...)" call site reduces to the bare
+	// name "Stat" — same as an unrelated React "Stat" component in the web/
+	// frontend. Before the language-family filter, resolveCall's
+	// unique-repo-wide-match fallback wired these together into a bogus
+	// cross-language edge.
+	files := []*FileGraph{
+		{
+			FilePath: "cmd/common.go",
+			Language: "go",
+			Symbols: []Symbol{
+				{SymbolRef: SymbolRef{ID: "cmd/common.go:resolveRepoPath", Name: "resolveRepoPath", Kind: KindFunction}, Language: "go"},
+			},
+			UnresolvedCalls: []UnresolvedCall{
+				{FromID: "cmd/common.go:resolveRepoPath", TargetName: "Stat", Kind: EdgeCalls},
+			},
+		},
+		{
+			FilePath: "web/src/components/Header/Header.tsx",
+			Language: "tsx",
+			Symbols: []Symbol{
+				{SymbolRef: SymbolRef{ID: "web/src/components/Header/Header.tsx:Stat", Name: "Stat", Kind: KindFunction}, Language: "tsx"},
+			},
+		},
+	}
+	g := Build(files)
+	for _, e := range g.Edges {
+		if e.Source == "cmd/common.go:resolveRepoPath" {
+			t.Fatalf("expected os.Stat call to stay unresolved (no Go \"Stat\" symbol exists), got a cross-language edge to %s", e.Target)
+		}
+	}
+}
+
+func TestResolveCallMatchesAcrossJSFamily(t *testing.T) {
+	// TypeScript/TSX/JavaScript compile to one runtime and commonly import
+	// across those extensions, so calls between them must still resolve.
+	files := []*FileGraph{
+		{
+			FilePath: "web/src/App.tsx",
+			Language: "tsx",
+			Symbols: []Symbol{
+				{SymbolRef: SymbolRef{ID: "web/src/App.tsx:App", Name: "App", Kind: KindFunction}, Language: "tsx"},
+			},
+			UnresolvedCalls: []UnresolvedCall{
+				{FromID: "web/src/App.tsx:App", TargetName: "helper", Kind: EdgeCalls},
+			},
+		},
+		{
+			FilePath: "web/src/utils/helper.ts",
+			Language: "typescript",
+			Symbols: []Symbol{
+				{SymbolRef: SymbolRef{ID: "web/src/utils/helper.ts:helper", Name: "helper", Kind: KindFunction}, Language: "typescript"},
+			},
+		},
+	}
+	g := Build(files)
+	for _, e := range g.Edges {
+		if e.Source == "web/src/App.tsx:App" && e.Target == "web/src/utils/helper.ts:helper" {
+			return
+		}
+	}
+	t.Fatal("expected tsx -> ts call to resolve within the JS family")
+}
+
 func TestResolveCallPrefersSameFileThenSameDir(t *testing.T) {
 	files := []*FileGraph{
 		{

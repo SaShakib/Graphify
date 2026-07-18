@@ -7,10 +7,14 @@ import "strings"
 //
 // Call sites only carry the bare identifier written at the call (e.g.
 // "log" for "s.log(port)") — there's no type checker here, so resolution
-// is name-based and deliberately conservative: prefer a candidate in the
-// same file, then the same directory (package), then fall back to a
-// unique repo-wide match. Ambiguous names with no same-file/dir winner are
-// left unresolved rather than guessing and drawing a misleading edge.
+// is name-based and deliberately conservative: candidates are restricted to
+// the same language as the call site (a Go call can never resolve to a
+// TypeScript symbol, however the names happen to collide — e.g. Go's
+// "os.Stat" call and an unrelated React "Stat" component both reduce to
+// the bare name "Stat"), then prefer a candidate in the same file, then the
+// same directory (package), then fall back to a unique match within that
+// language. Ambiguous names with no same-file/dir winner are left
+// unresolved rather than guessing and drawing a misleading edge.
 func Build(files []*FileGraph) *Graph {
 	var symbols []Symbol
 	var calls []UnresolvedCall
@@ -52,7 +56,13 @@ func BuildFlat(symbols []Symbol, calls []UnresolvedCall) *Graph {
 }
 
 func resolveCall(from Symbol, name string, byName map[string][]Symbol) string {
-	candidates := byName[name]
+	family := languageFamily(from.Language)
+	var candidates []Symbol
+	for _, c := range byName[name] {
+		if languageFamily(c.Language) == family {
+			candidates = append(candidates, c)
+		}
+	}
 	if len(candidates) == 0 {
 		return ""
 	}
@@ -79,6 +89,20 @@ func resolveCall(from Symbol, name string, byName map[string][]Symbol) string {
 		return candidates[0].ID
 	}
 	return ""
+}
+
+// languageFamily groups languages that can actually call into each other at
+// runtime. TypeScript/TSX/JavaScript all compile to the same JS runtime and
+// commonly import across those extensions; Go and Python never call into
+// that runtime (or each other) directly, so a same-named symbol there is
+// always a coincidence, not a real call target.
+func languageFamily(lang string) string {
+	switch lang {
+	case "typescript", "tsx", "javascript":
+		return "js"
+	default:
+		return lang
+	}
 }
 
 func dirOf(path string) string {

@@ -15,22 +15,26 @@ func TestIngestAndQuery(t *testing.T) {
 	}
 	defer s.Close()
 
-	goSrc := []byte(`package main
+	goSrcA := []byte(`package main
 
 func Add(a int, b int) int {
 	return helper(a, b)
 }
 `)
-	pySrc := []byte(`
-def helper(a, b):
-    return a + b
+	// Same-language ("go") but a different file, so Calls/Callers exercise a
+	// real cross-file resolved edge rather than a same-file one.
+	goSrcB := []byte(`package main
+
+func helper(a int, b int) int {
+	return a + b
+}
 `)
 
-	goFG, err := parser.ParseGo("a.go", goSrc)
+	goFG, err := parser.ParseGo("a.go", goSrcA)
 	if err != nil {
 		t.Fatal(err)
 	}
-	pyFG, err := parser.ParsePython("b.py", pySrc)
+	goFG2, err := parser.ParseGo("b.go", goSrcB)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +42,7 @@ def helper(a, b):
 	if err := s.UpsertFile(goFG, "hash1"); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.UpsertFile(pyFG, "hash2"); err != nil {
+	if err := s.UpsertFile(goFG2, "hash2"); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.RebuildEdges(); err != nil {
