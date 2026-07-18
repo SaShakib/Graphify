@@ -315,5 +315,18 @@ func scanSymbol(row scanner) (graph.Symbol, error) {
 	if err := json.Unmarshal([]byte(returnsJSON), &sym.Returns); err != nil {
 		return sym, err
 	}
+	// A zero-param/zero-return symbol (e.g. "func main()", or a route with
+	// no params of its own) stores its params/returns as JSON "null",
+	// which json.Unmarshal leaves as a nil Go slice — that re-encodes to
+	// the API response as `null` instead of `[]`. The frontend calls
+	// .map()/.length on these unconditionally (per API_CONTRACT.md, an
+	// empty array is the documented empty case, not null), so a nil slice
+	// here crashes the page. Normalize to non-nil.
+	if sym.Params == nil {
+		sym.Params = []graph.Param{}
+	}
+	if sym.Returns == nil {
+		sym.Returns = []graph.Param{}
+	}
 	return sym, nil
 }

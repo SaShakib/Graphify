@@ -145,3 +145,38 @@ func TestUpsertFileReplacesPreviousContent(t *testing.T) {
 		t.Fatalf("FileHash wrong: hash=%s ok=%v err=%v", hash, ok, err)
 	}
 }
+
+func TestSymbolWithNoParamsOrReturnsIsNeverNil(t *testing.T) {
+	// Regression test: "func main()" has zero params and zero returns, so
+	// the parser leaves Symbol.Params/Returns as a nil Go slice. That
+	// round-trips through SQLite as JSON "null" — Symbol() must normalize
+	// it back to []Param{}, matching what API_CONTRACT.md documents and
+	// what the frontend unconditionally .map()s/.length()s over. A nil
+	// slice here used to crash the symbol detail page for every
+	// zero-param function, including "main" itself.
+	dbPath := filepath.Join(t.TempDir(), "graph.db")
+	s, err := Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	fg, err := parser.ParseGo("main.go", []byte("package main\n\nfunc main() {\n\thelper()\n}\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpsertFile(fg, "hash1"); err != nil {
+		t.Fatal(err)
+	}
+
+	sym, ok, err := s.Symbol("main.go:main")
+	if err != nil || !ok {
+		t.Fatalf("Symbol(main.go:main) failed: ok=%v err=%v", ok, err)
+	}
+	if sym.Params == nil {
+		t.Error("expected Params to be a non-nil empty slice, got nil")
+	}
+	if sym.Returns == nil {
+		t.Error("expected Returns to be a non-nil empty slice, got nil")
+	}
+}

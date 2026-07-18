@@ -2,6 +2,7 @@ package parser
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	sitter "github.com/smacker/go-tree-sitter"
@@ -11,6 +12,12 @@ import (
 )
 
 var goCallKinds = map[string]bool{"call_expression": true}
+
+// goRouteMethods are the net/http ServeMux (and gorilla/mux-alike)
+// registration methods this recognizes: "x.HandleFunc(pattern, handler)" or
+// "x.Handle(pattern, handler)". Framework-specific route registration
+// (chi, gin, echo, ...) isn't covered yet.
+var goRouteMethods = map[string]bool{"HandleFunc": true, "Handle": true}
 
 // ParseGo extracts top-level func/method/type/const/var declarations from a
 // Go source file, plus every call made from inside a function or method body.
@@ -72,7 +79,72 @@ func ParseGo(filePath string, src []byte) (*graph.FileGraph, error) {
 		}
 	}
 
+	routeSyms, routeCalls := goRoutes(tree.RootNode(), src, filePath)
+	fg.Symbols = append(fg.Symbols, routeSyms...)
+	fg.UnresolvedCalls = append(fg.UnresolvedCalls, routeCalls...)
+
 	return fg, nil
+}
+
+// goRoutes finds net/http-style route registrations anywhere in the file
+// (they're almost always inside a setup function's body, not a top-level
+// declaration, so this walks the whole tree rather than just named
+// top-level children) and turns each into a synthetic graph.KindRoute
+// symbol linked to its handler via an EdgeHandles UnresolvedCall — reusing
+// the same cross-file resolution the rest of the parser already relies on.
+func goRoutes(root *sitter.Node, src []byte, filePath string) ([]graph.Symbol, []graph.UnresolvedCall) {
+	var syms []graph.Symbol
+	var calls []graph.UnresolvedCall
+
+	walk(root, goCallKinds, func(call *sitter.Node) {
+		fn := call.ChildByFieldName("function")
+		if fn == nil || fn.Type() != "selector_expression" {
+			return
+		}
+		method := nodeText(fn.ChildByFieldName("field"), src)
+		if !goRouteMethods[method] {
+			return
+		}
+		args := call.ChildByFieldName("arguments")
+		if args == nil || args.NamedChildCount() != 2 {
+			return
+		}
+		patternNode := args.NamedChild(0)
+		if patternNode.Type() != "interpreted_string_literal" && patternNode.Type() != "raw_string_literal" {
+			return
+		}
+		pattern := strings.Trim(nodeText(patternNode, src), "\"`")
+
+		handlerNode := args.NamedChild(1)
+		handlerName := ""
+		qualified := false
+		switch handlerNode.Type() {
+		case "identifier":
+			handlerName = nodeText(handlerNode, src)
+		case "selector_expression":
+			handlerName = nodeText(handlerNode.ChildByFieldName("field"), src)
+			qualified = true
+		default:
+			return // inline func literal or other expression — no named handler to link
+		}
+
+		routeID := symbolID(filePath, fmt.Sprintf("route:%s:%d", pattern, line1(call.StartPoint())))
+		syms = append(syms, graph.Symbol{
+			SymbolRef: graph.SymbolRef{
+				ID:        routeID,
+				Name:      pattern,
+				Kind:      graph.KindRoute,
+				FilePath:  filePath,
+				StartLine: line1(call.StartPoint()),
+				EndLine:   line1(call.EndPoint()),
+			},
+			Signature: strings.TrimSpace(nodeText(call, src)),
+			Language:  "go",
+		})
+		calls = append(calls, graph.UnresolvedCall{FromID: routeID, TargetName: handlerName, Kind: graph.EdgeHandles, Qualified: qualified})
+	})
+
+	return syms, calls
 }
 
 func goReceiverType(recv *sitter.Node, src []byte) string {

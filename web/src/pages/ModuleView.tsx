@@ -5,9 +5,10 @@ import { getFileSymbols, getSymbol } from "../api/client"
 import { KindBadge, LanguageBadge } from "../components/Badges/Badges"
 import "./ModuleView.css"
 
-const GROUP_ORDER: SymbolKind[] = ["class", "interface", "function", "method", "const", "variable", "module", "package"]
+const GROUP_ORDER: SymbolKind[] = ["route", "class", "interface", "function", "method", "const", "variable", "module", "package"]
 
 const GROUP_TITLE: Record<SymbolKind, string> = {
+  route: "Routes",
   class: "Classes",
   interface: "Interfaces",
   function: "Functions",

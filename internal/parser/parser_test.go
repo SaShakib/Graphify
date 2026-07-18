@@ -84,6 +84,63 @@ var counter int = 0
 	}
 }
 
+func TestParseGoRoutes(t *testing.T) {
+	src := []byte(`package main
+
+type Server struct{}
+
+func (s *Server) routes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/tree", s.handleTree)
+	mux.HandleFunc("POST /api/reindex", reindex)
+}
+
+func (s *Server) handleTree() {}
+
+func reindex() {}
+`)
+	fg, err := ParseGo("server.go", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var routes []graph.Symbol
+	for _, s := range fg.Symbols {
+		if s.Kind == graph.KindRoute {
+			routes = append(routes, s)
+		}
+	}
+	if len(routes) != 2 {
+		t.Fatalf("expected 2 route symbols, got %d: %+v", len(routes), routes)
+	}
+
+	names := map[string]bool{}
+	for _, r := range routes {
+		names[r.Name] = true
+	}
+	if !names["GET /api/tree"] || !names["POST /api/reindex"] {
+		t.Fatalf("unexpected route names: %+v", names)
+	}
+
+	var gotMethodHandler, gotFuncHandler bool
+	for _, c := range fg.UnresolvedCalls {
+		if c.Kind != graph.EdgeHandles {
+			continue
+		}
+		if c.TargetName == "handleTree" && c.Qualified {
+			gotMethodHandler = true
+		}
+		if c.TargetName == "reindex" && !c.Qualified {
+			gotFuncHandler = true
+		}
+	}
+	if !gotMethodHandler {
+		t.Error("expected GET /api/tree route to link to method handler s.handleTree (qualified)")
+	}
+	if !gotFuncHandler {
+		t.Error("expected POST /api/reindex route to link to bare function handler reindex")
+	}
+}
+
 func TestParseTypeScript(t *testing.T) {
 	src := []byte(`
 /** Adds two numbers. */

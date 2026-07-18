@@ -170,6 +170,45 @@
   white-space: nowrap;
 }
 
+.symbol-node-route {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.symbol-node-route-handler {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  padding: 4px 6px;
+  cursor: pointer;
+  text-align: left;
+  overflow: hidden;
+}
+
+.symbol-node-route-handler:hover {
+  border-color: var(--node-color);
+}
+
+.symbol-node-route-handler-kind {
+  flex: none;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.symbol-node-route-handler-name {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+}
+
 .symbol-node-expanded-open {
   margin-top: 8px;
   width: 100%;

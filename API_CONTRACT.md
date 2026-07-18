@@ -18,6 +18,9 @@ type SymbolKind =
   | "method"
   | "const"
   | "variable"
+  | "route"     // synthetic: a framework route-registration call site, not a declaration.
+                 // name is the route pattern (e.g. "GET /api/tree"); an EdgeHandles
+                 // edge points at the handler function.
 
 interface Param {
   name: string
@@ -46,7 +49,8 @@ interface Symbol extends SymbolRef {
 interface Edge {
   source: string   // symbol id
   target: string   // symbol id
-  kind: "calls" | "references" | "contains" | "implements" | "extends"
+  kind: "calls" | "references" | "contains" | "implements" | "extends" | "handles"
+  // "handles": source is a KindRoute symbol, target is its handler function.
 }
 
 interface TreeNode {

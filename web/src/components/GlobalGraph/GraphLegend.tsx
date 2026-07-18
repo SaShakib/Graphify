@@ -2,7 +2,7 @@ import { EDGE_LABEL, edgeColor } from "../../utils/style"
 import type { EdgeKind } from "../../api/types"
 import "./GraphLegend.css"
 
-const EDGE_KINDS: EdgeKind[] = ["calls", "references", "contains", "implements", "extends"]
+const EDGE_KINDS: EdgeKind[] = ["calls", "references", "contains", "implements", "extends", "handles"]
 
 export function GraphLegend() {
   return (

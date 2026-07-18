@@ -21,12 +21,14 @@
   --k-variable: #8fbf5f;
   --k-module: #9aa4b2;
   --k-package: #9aa4b2;
+  --k-route: #c94fc9;
 
   --e-calls: #4f7cff;
   --e-references: #8fbf5f;
   --e-contains: #9aa4b2;
   --e-implements: #a37fdb;
   --e-extends: #d97757;
+  --e-handles: #c94fc9;
 
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
   --mono: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
@@ -67,12 +69,14 @@
     --k-variable: #a8de78;
     --k-module: #8b93a5;
     --k-package: #8b93a5;
+    --k-route: #e07be0;
 
     --e-calls: #7c9dff;
     --e-references: #a8de78;
     --e-contains: #6b7280;
     --e-implements: #c2a4ec;
     --e-extends: #f0946b;
+    --e-handles: #e07be0;
   }
 }
 

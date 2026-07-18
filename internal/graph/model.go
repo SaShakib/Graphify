@@ -15,6 +15,11 @@ const (
 	KindMethod    SymbolKind = "method"
 	KindConst     SymbolKind = "const"
 	KindVariable  SymbolKind = "variable"
+	// KindRoute is a synthetic node: not a declaration in source, but a
+	// framework route-registration call site (e.g. Go's
+	// mux.HandleFunc("GET /api/tree", handler)). Its Name is the route
+	// pattern; an EdgeHandles edge points at the handler function.
+	KindRoute SymbolKind = "route"
 )
 
 // EdgeKind classifies a relationship between two symbols.
@@ -26,6 +31,8 @@ const (
 	EdgeContains   EdgeKind = "contains"
 	EdgeImplements EdgeKind = "implements"
 	EdgeExtends    EdgeKind = "extends"
+	// EdgeHandles connects a KindRoute node to the function that handles it.
+	EdgeHandles EdgeKind = "handles"
 )
 
 // Param is one parameter or return value: a name paired with a rendered

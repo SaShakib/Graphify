@@ -9,6 +9,7 @@ export const KIND_LABEL: Record<SymbolKind, string> = {
   method: "method",
   const: "const",
   variable: "var",
+  route: "route",
 }
 
 export const KIND_COLOR_VAR: Record<SymbolKind, string> = {
@@ -20,6 +21,7 @@ export const KIND_COLOR_VAR: Record<SymbolKind, string> = {
   method: "--k-method",
   const: "--k-const",
   variable: "--k-variable",
+  route: "--k-route",
 }
 
 export const EDGE_LABEL: Record<EdgeKind, string> = {
@@ -28,6 +30,7 @@ export const EDGE_LABEL: Record<EdgeKind, string> = {
   contains: "contains",
   implements: "implements",
   extends: "extends",
+  handles: "handles",
 }
 
 export const EDGE_COLOR_VAR: Record<EdgeKind, string> = {
@@ -36,6 +39,7 @@ export const EDGE_COLOR_VAR: Record<EdgeKind, string> = {
   contains: "--e-contains",
   implements: "--e-implements",
   extends: "--e-extends",
+  handles: "--e-handles",
 }
 
 export function kindColor(kind: SymbolKind): string {
@@ -53,6 +57,7 @@ const KIND_HEX: Record<SymbolKind, string> = {
   method: "#4fd6cd",
   const: "#f0cc6b",
   variable: "#a8de78",
+  route: "#e07be0",
 }
 
 export function kindHexColor(kind: SymbolKind): string {

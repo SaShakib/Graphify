@@ -10,6 +10,8 @@ export type SymbolKind =
   | "method"
   | "const"
   | "variable"
+  | "route" // synthetic: a framework route-registration call site, not a declaration.
+  // name is the route pattern (e.g. "GET /api/tree"); a "handles" edge points at the handler.
 
 export interface Param {
   name: string
@@ -35,7 +37,7 @@ export interface Symbol extends SymbolRef {
   doc?: string // leading comment/docstring, if present
 }
 
-export type EdgeKind = "calls" | "references" | "contains" | "implements" | "extends"
+export type EdgeKind = "calls" | "references" | "contains" | "implements" | "extends" | "handles"
 
 export interface Edge {
   source: string // symbol id
