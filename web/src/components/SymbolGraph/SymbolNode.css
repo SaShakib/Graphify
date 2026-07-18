@@ -1,0 +1,48 @@
+.symbol-node {
+  min-width: 170px;
+  max-width: 220px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  border: 1.5px solid var(--node-color);
+  background: var(--bg-elevated);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+}
+
+.symbol-node.center {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--node-color) 35%, transparent);
+}
+
+.symbol-node-kind {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--node-color);
+  margin-bottom: 2px;
+}
+
+.symbol-node-name {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.symbol-node-file {
+  font-size: 10px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.react-flow__handle {
+  background: var(--border-strong);
+  width: 6px;
+  height: 6px;
+  border: none;
+}
