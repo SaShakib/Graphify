@@ -73,6 +73,16 @@ type UnresolvedCall struct {
 	FromID     string   // caller symbol ID (always known — it's in the same file)
 	TargetName string   // bare identifier or dotted/selector name as written at the call site
 	Kind       EdgeKind // usually EdgeCalls, sometimes EdgeReferences/EdgeImplements/EdgeExtends
+	// Qualified is true for a method/selector call site (e.g. "resp.Body.Close()"
+	// -> TargetName "Close"). Such names collide constantly with unrelated
+	// local methods sharing the same name (Close, Get, Add, String, ...) —
+	// the true receiver is almost always an external/stdlib type this
+	// tool never parses, so the builder only resolves qualified calls
+	// against an unambiguous same-file/same-directory match, never a
+	// repo-wide "only one with this name" guess. Bare function calls
+	// (Qualified false) collide far less often and keep the repo-wide
+	// fallback.
+	Qualified bool
 }
 
 // FileGraph is everything one parser produced for a single source file.

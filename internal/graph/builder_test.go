@@ -46,6 +46,41 @@ func TestBuildResolvesCallsAndContains(t *testing.T) {
 	}
 }
 
+func TestResolveCallQualifiedNeverUsesRepoWideFallback(t *testing.T) {
+	// Regression test: "resp.Body.Close()" reduces to the bare name "Close"
+	// — the receiver (an unparsed stdlib type) is invisible to this tool.
+	// Before the Qualified flag, if the repo happened to have exactly one
+	// local symbol named "Close" (a common method name), the "unique
+	// repo-wide match" fallback wired the stdlib call to it anyway.
+	// Bare/unqualified calls (plain "Helper()") keep the fallback — see
+	// TestBuildResolvesCallsAndContains.
+	files := []*FileGraph{
+		{
+			FilePath: "a.go",
+			Language: "go",
+			Symbols: []Symbol{
+				{SymbolRef: SymbolRef{ID: "a.go:DoRequest", Name: "DoRequest", Kind: KindFunction, FilePath: "a.go"}, Language: "go"},
+			},
+			UnresolvedCalls: []UnresolvedCall{
+				{FromID: "a.go:DoRequest", TargetName: "Close", Kind: EdgeCalls, Qualified: true},
+			},
+		},
+		{
+			FilePath: "store/store.go",
+			Language: "go",
+			Symbols: []Symbol{
+				{SymbolRef: SymbolRef{ID: "store/store.go:Close", Name: "Close", Kind: KindMethod, FilePath: "store/store.go"}, Language: "go"},
+			},
+		},
+	}
+	g := Build(files)
+	for _, e := range g.Edges {
+		if e.Source == "a.go:DoRequest" {
+			t.Fatalf("expected qualified call with no same-file/dir match to stay unresolved, got edge to %s", e.Target)
+		}
+	}
+}
+
 func TestResolveCallNeverCrossesLanguageFamilies(t *testing.T) {
 	// Regression test: Go's "os.Stat(...)" call site reduces to the bare
 	// name "Stat" — same as an unrelated React "Stat" component in the web/

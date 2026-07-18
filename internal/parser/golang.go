@@ -165,14 +165,16 @@ func goFunc(decl *sitter.Node, src []byte, filePath, recvType string) (graph.Sym
 				return
 			}
 			target := ""
+			qualified := false
 			switch fn.Type() {
 			case "identifier":
 				target = nodeText(fn, src)
 			case "selector_expression":
 				target = nodeText(fn.ChildByFieldName("field"), src)
+				qualified = true
 			}
 			if target != "" {
-				calls = append(calls, graph.UnresolvedCall{FromID: id, TargetName: target, Kind: graph.EdgeCalls})
+				calls = append(calls, graph.UnresolvedCall{FromID: id, TargetName: target, Kind: graph.EdgeCalls, Qualified: qualified})
 			}
 		})
 	}

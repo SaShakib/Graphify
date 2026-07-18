@@ -43,7 +43,8 @@ CREATE TABLE IF NOT EXISTS unresolved_calls (
 	file_path TEXT NOT NULL,
 	from_id TEXT NOT NULL,
 	target_name TEXT NOT NULL,
-	kind TEXT NOT NULL
+	kind TEXT NOT NULL,
+	qualified INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_calls_file ON unresolved_calls(file_path);
 
@@ -74,7 +75,44 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("store: apply schema: %w", err)
 	}
+	if err := migrate(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("store: migrate: %w", err)
+	}
 	return &Store{db: db}, nil
+}
+
+// migrate adds columns introduced after a database's initial CREATE TABLE
+// ran — CREATE TABLE IF NOT EXISTS is a no-op against an existing file, so
+// new columns need an explicit ALTER TABLE. This cache is fully rebuildable
+// from source (delete .graphify/graph.db and re-run `graphify parse`), so
+// there's nothing to backfill: existing rows just default to 0/false.
+func migrate(db *sql.DB) error {
+	rows, err := db.Query(`SELECT name FROM pragma_table_info('unresolved_calls')`)
+	if err != nil {
+		return err
+	}
+	hasQualified := false
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			rows.Close()
+			return err
+		}
+		if name == "qualified" {
+			hasQualified = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	rows.Close()
+	if !hasQualified {
+		if _, err := db.Exec(`ALTER TABLE unresolved_calls ADD COLUMN qualified INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Store) Close() error { return s.db.Close() }
@@ -151,8 +189,8 @@ func (s *Store) UpsertFile(fg *graph.FileGraph, hash string) error {
 	}
 
 	for _, c := range fg.UnresolvedCalls {
-		if _, err := tx.Exec(`INSERT INTO unresolved_calls(file_path, from_id, target_name, kind) VALUES (?, ?, ?, ?)`,
-			fg.FilePath, c.FromID, c.TargetName, string(c.Kind)); err != nil {
+		if _, err := tx.Exec(`INSERT INTO unresolved_calls(file_path, from_id, target_name, kind, qualified) VALUES (?, ?, ?, ?, ?)`,
+			fg.FilePath, c.FromID, c.TargetName, string(c.Kind), c.Qualified); err != nil {
 			return err
 		}
 	}
@@ -241,7 +279,7 @@ func (s *Store) allSymbols() ([]graph.Symbol, error) {
 }
 
 func (s *Store) allUnresolvedCalls() ([]graph.UnresolvedCall, error) {
-	rows, err := s.db.Query(`SELECT from_id, target_name, kind FROM unresolved_calls`)
+	rows, err := s.db.Query(`SELECT from_id, target_name, kind, qualified FROM unresolved_calls`)
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +288,7 @@ func (s *Store) allUnresolvedCalls() ([]graph.UnresolvedCall, error) {
 	for rows.Next() {
 		var c graph.UnresolvedCall
 		var kind string
-		if err := rows.Scan(&c.FromID, &c.TargetName, &kind); err != nil {
+		if err := rows.Scan(&c.FromID, &c.TargetName, &kind, &c.Qualified); err != nil {
 			return nil, err
 		}
 		c.Kind = graph.EdgeKind(kind)

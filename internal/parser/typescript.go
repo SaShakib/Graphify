@@ -202,14 +202,16 @@ func jsFunc(n *sitter.Node, src []byte, filePath, lang string, nameNode *sitter.
 				return
 			}
 			target := ""
+			qualified := false
 			switch fn.Type() {
 			case "identifier":
 				target = nodeText(fn, src)
 			case "member_expression":
 				target = nodeText(fn.ChildByFieldName("property"), src)
+				qualified = true
 			}
 			if target != "" {
-				calls = append(calls, graph.UnresolvedCall{FromID: id, TargetName: target, Kind: graph.EdgeCalls})
+				calls = append(calls, graph.UnresolvedCall{FromID: id, TargetName: target, Kind: graph.EdgeCalls, Qualified: qualified})
 			}
 		})
 	}

@@ -12,9 +12,10 @@ import "strings"
 // TypeScript symbol, however the names happen to collide — e.g. Go's
 // "os.Stat" call and an unrelated React "Stat" component both reduce to
 // the bare name "Stat"), then prefer a candidate in the same file, then the
-// same directory (package), then fall back to a unique match within that
-// language. Ambiguous names with no same-file/dir winner are left
-// unresolved rather than guessing and drawing a misleading edge.
+// same directory (package), then — only for unqualified/bare calls — fall
+// back to a unique match within that language. Ambiguous names with no
+// same-file/dir winner are left unresolved rather than guessing and
+// drawing a misleading edge.
 func Build(files []*FileGraph) *Graph {
 	var symbols []Symbol
 	var calls []UnresolvedCall
@@ -45,7 +46,7 @@ func BuildFlat(symbols []Symbol, calls []UnresolvedCall) *Graph {
 		if !ok {
 			continue
 		}
-		target := resolveCall(from, call.TargetName, byName)
+		target := resolveCall(from, call.TargetName, call.Qualified, byName)
 		if target == "" {
 			continue
 		}
@@ -55,7 +56,7 @@ func BuildFlat(symbols []Symbol, calls []UnresolvedCall) *Graph {
 	return g
 }
 
-func resolveCall(from Symbol, name string, byName map[string][]Symbol) string {
+func resolveCall(from Symbol, name string, qualified bool, byName map[string][]Symbol) string {
 	family := languageFamily(from.Language)
 	var candidates []Symbol
 	for _, c := range byName[name] {
@@ -85,7 +86,7 @@ func resolveCall(from Symbol, name string, byName map[string][]Symbol) string {
 	if sameDir != nil {
 		return sameDir.ID
 	}
-	if len(candidates) == 1 {
+	if !qualified && len(candidates) == 1 {
 		return candidates[0].ID
 	}
 	return ""
