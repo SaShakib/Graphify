@@ -6,8 +6,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/spf13/cobra"
+
+	"graphify/internal/bots"
 )
 
 // locateBotsDir finds the bots/ directory the same way locateWebDir finds
@@ -43,7 +46,56 @@ func newBotCmd() *cobra.Command {
 	cmd.AddCommand(newBotDoctorCmd())
 	cmd.AddCommand(newBotGraphSyncCmd())
 	cmd.AddCommand(newBotPRReviewCmd())
+
+	// The remaining Python bots do their own argument parsing, so they're
+	// registered as thin passthroughs that forward everything to the
+	// script. Metadata comes from the shared registry so the CLI and the
+	// web dashboard list exactly the same bots.
+	passthrough := map[string]string{
+		"commit-check":    "commit_check.py",
+		"test-writer":     "test_writer.py",
+		"anomaly-scan":    "anomaly_scan.py",
+		"feature-verdict": "feature_verdict.py",
+		"triage":          "triage.py",
+	}
+	for _, def := range bots.Registry {
+		script, ok := passthrough[def.Name]
+		if !ok {
+			continue
+		}
+		cmd.AddCommand(newBotPassthroughCmd(def.Name, script, def.Description))
+	}
 	return cmd
+}
+
+// newBotPassthroughCmd builds a `graphify bot <name>` command that forwards
+// all args to the bot's Python script (which does its own arg parsing),
+// injecting --repo <cwd> when the caller didn't pass one.
+func newBotPassthroughCmd(name, script, short string) *cobra.Command {
+	return &cobra.Command{
+		Use:                name + " [args...]",
+		Short:              short,
+		DisableFlagParsing: true, // let the Python script parse its own flags
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !hasRepoFlag(args) {
+				wd, err := os.Getwd()
+				if err != nil {
+					return err
+				}
+				args = append(args, "--repo", wd)
+			}
+			return runBotScript(script, "", args)
+		},
+	}
+}
+
+func hasRepoFlag(args []string) bool {
+	for _, a := range args {
+		if a == "--repo" || strings.HasPrefix(a, "--repo=") {
+			return true
+		}
+	}
+	return false
 }
 
 // runBotScript execs a bots/*.py script, forwarding stdio and propagating

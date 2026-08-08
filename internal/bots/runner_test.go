@@ -162,3 +162,38 @@ func indexOf(s, sub string) int {
 	}
 	return -1
 }
+
+func TestBuildArgsNewBots(t *testing.T) {
+	cases := []struct {
+		bot  string
+		args map[string]string
+		want []string
+	}{
+		{"commit-check", map[string]string{"ref": "HEAD~1"}, []string{"bot", "commit-check", "HEAD~1", "--repo", "/r"}},
+		{"commit-check", map[string]string{}, []string{"bot", "commit-check", "", "--repo", "/r"}},
+		{"test-writer", map[string]string{"target": "BuildFlat", "write": "true"}, []string{"bot", "test-writer", "BuildFlat", "--write", "--repo", "/r"}},
+		{"test-writer", map[string]string{"target": "BuildFlat", "write": "false"}, []string{"bot", "test-writer", "BuildFlat", "--repo", "/r"}},
+		{"anomaly-scan", map[string]string{"focus": "server"}, []string{"bot", "anomaly-scan", "--focus", "server", "--repo", "/r"}},
+		{"anomaly-scan", map[string]string{}, []string{"bot", "anomaly-scan", "--repo", "/r"}},
+		{"feature-verdict", map[string]string{"feature": "add delete endpoint"}, []string{"bot", "feature-verdict", "add delete endpoint", "--repo", "/r"}},
+		{"triage", map[string]string{"issue": "7", "comment": "true"}, []string{"bot", "triage", "7", "--comment", "--repo", "/r"}},
+	}
+	for _, c := range cases {
+		def, ok := Lookup(c.bot)
+		if !ok {
+			t.Fatalf("bot %s not in registry", c.bot)
+		}
+		got, err := buildArgs(def, c.args, "/r")
+		if err != nil {
+			t.Fatalf("%s: %v", c.bot, err)
+		}
+		if len(got) != len(c.want) {
+			t.Fatalf("%s: got %v want %v", c.bot, got, c.want)
+		}
+		for i := range c.want {
+			if got[i] != c.want[i] {
+				t.Fatalf("%s arg %d: got %q want %q (full %v)", c.bot, i, got[i], c.want[i], got)
+			}
+		}
+	}
+}

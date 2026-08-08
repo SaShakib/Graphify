@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -101,36 +102,41 @@ func (r *Runner) Start(botName string, args map[string]string) (*Run, error) {
 
 // buildArgs turns a bot def + user args into the argv after
 // `graphify bot`. Positional args (declared in def.positional) come first
-// in order; the rest become --name value flags. Every bot also gets
+// in order; the rest become flags — boolean args as "--name" when truthy,
+// others as "--name value". Arg names use underscores (JSON-friendly) but
+// CLI flags use dashes, so "dry_run" -> "--dry-run". Every bot also gets
 // --repo <repoRoot> so it operates on the served repo.
 func buildArgs(def Def, args map[string]string, repoRoot string) ([]string, error) {
+	byName := map[string]ArgDef{}
+	for _, a := range def.Args {
+		byName[a.Name] = a
+	}
+
 	out := []string{"bot", def.subcommand}
 	posSet := map[string]bool{}
 	for _, name := range def.positional {
 		posSet[name] = true
-		v := args[name]
-		out = append(out, v)
+		out = append(out, args[name]) // positional value (may be empty for optional ones)
 	}
+
 	// Deterministic flag order for testability.
 	var flagNames []string
 	for _, a := range def.Args {
-		if posSet[a.Name] {
+		if posSet[a.Name] || args[a.Name] == "" {
 			continue
 		}
-		if args[a.Name] != "" {
-			flagNames = append(flagNames, a.Name)
-		}
+		flagNames = append(flagNames, a.Name)
 	}
 	sort.Strings(flagNames)
 	for _, name := range flagNames {
-		// dry_run is a boolean flag on pr-review: "--dry-run" with no value.
-		if name == "dry_run" {
+		flag := "--" + strings.ReplaceAll(name, "_", "-")
+		if byName[name].Bool {
 			if isTruthy(args[name]) {
-				out = append(out, "--dry-run")
+				out = append(out, flag)
 			}
 			continue
 		}
-		out = append(out, "--"+name, args[name])
+		out = append(out, flag, args[name])
 	}
 	out = append(out, "--repo", repoRoot)
 	return out, nil
