@@ -7,6 +7,7 @@ import { HomeView } from './pages/HomeView.tsx'
 import { ModuleView } from './pages/ModuleView.tsx'
 import { SymbolDetailView } from './pages/SymbolDetailView.tsx'
 import { GraphPageView } from './pages/GraphPageView.tsx'
+import { BotsView } from './pages/BotsView.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -17,6 +18,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="file/*" element={<ModuleView />} />
           <Route path="symbol/:id" element={<SymbolDetailView />} />
           <Route path="graph" element={<GraphPageView />} />
+          <Route path="bots" element={<BotsView />} />
         </Route>
       </Routes>
     </BrowserRouter>

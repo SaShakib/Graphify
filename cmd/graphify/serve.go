@@ -3,11 +3,13 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
 	"runtime"
 
 	"github.com/spf13/cobra"
 
+	"graphify/internal/bots"
 	"graphify/internal/server"
 )
 
@@ -35,7 +37,18 @@ func newServeCmd() *cobra.Command {
 				cmd.Println("No built web UI found (looked for web/dist). Serving the API only — see API_CONTRACT.md, or pass --web-dir.")
 			}
 
-			srv := server.New(s, repoRoot, resolvedWebDir)
+			// The bot runner re-invokes this same graphify binary, so the
+			// web dashboard runs the exact same code paths as the CLI. If
+			// we can't resolve our own path, the dashboard's run endpoints
+			// are simply disabled (nil runner) — the graph UI still works.
+			var runner *bots.Runner
+			if self, err := os.Executable(); err == nil {
+				runner = bots.NewRunner(self, repoRoot)
+			} else {
+				cmd.Println("Could not resolve the graphify binary path — bot dashboard disabled, graph UI still available.")
+			}
+
+			srv := server.New(s, repoRoot, resolvedWebDir, runner)
 			addr := fmt.Sprintf("localhost:%d", port)
 			url := "http://" + addr
 

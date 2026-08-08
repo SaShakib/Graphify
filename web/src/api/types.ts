@@ -83,3 +83,37 @@ export interface StatsResponse {
 export interface ApiError {
   error: string
 }
+
+// --- Bot control (dashboard) ---
+// Types copied verbatim from API_CONTRACT.md ("Bot control (dashboard)").
+
+export interface BotDef {
+  name: string // stable id, e.g. "graph-sync"
+  title: string // human label, e.g. "Graph Sync"
+  description: string
+  kind: "go-native" | "python"
+  needsAuth: boolean // true if it needs a working `claude` session
+  args: BotArg[] // declared inputs the UI renders a form for
+}
+
+export interface BotArg {
+  name: string // e.g. "pr_number"
+  label: string
+  required: boolean
+  placeholder?: string
+}
+
+export type RunStatus = "running" | "succeeded" | "failed"
+
+export interface BotRun {
+  id: string // opaque run id
+  bot: string // BotDef.name
+  status: RunStatus
+  startedAt: string // RFC3339
+  finishedAt?: string // RFC3339, set when not running
+  exitCode?: number // set when finished
+  output: string // combined stdout+stderr so far (grows while running)
+}
+
+// A run summary omits `output` for cheap list rendering.
+export type BotRunSummary = Omit<BotRun, "output">

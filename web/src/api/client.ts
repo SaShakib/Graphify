@@ -23,6 +23,9 @@ import type {
   SymbolRef,
   SourceResponse,
   TreeNode,
+  BotDef,
+  BotRun,
+  BotRunSummary,
 } from "./types"
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true"
@@ -46,8 +49,8 @@ class ApiRequestError extends Error {
   }
 }
 
-async function request<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`)
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, init)
   if (!res.ok) {
     let message = res.statusText
     try {
@@ -123,6 +126,28 @@ export async function getSource(filePath: string, start: number, end: number): P
 export async function getStats(): Promise<StatsResponse> {
   if (USE_MOCK) return delay(MOCK_STATS)
   return request<StatsResponse>("/stats")
+}
+
+// --- Bot control (dashboard) ---
+
+export async function getBots(): Promise<BotDef[]> {
+  return request<BotDef[]>("/bots")
+}
+
+export async function runBot(name: string, args: Record<string, string>): Promise<BotRun> {
+  return request<BotRun>(`/bots/${encodeURIComponent(name)}/run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ args }),
+  })
+}
+
+export async function getBotRuns(): Promise<BotRunSummary[]> {
+  return request<BotRunSummary[]>("/bots/runs")
+}
+
+export async function getBotRun(id: string): Promise<BotRun> {
+  return request<BotRun>(`/bots/runs/${encodeURIComponent(id)}`)
 }
 
 // Encodes a repo-relative path for use after `/files/` while preserving `/`

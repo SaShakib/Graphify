@@ -78,7 +78,14 @@ the MCP server. Vector memory extends the same idea to non-code knowledge
 |---|---|
 | CLI session to run/control bots | ✅ `graphify bot ...` |
 | Web view of the graph | ✅ `graphify serve` |
-| Web view to **control bots** (dashboard: trigger, see runs/output) | ⬜ |
+| Web view to **control bots** (dashboard: trigger, see runs/output) | ✅ `/bots` tab — verified end-to-end |
+
+The bot dashboard (`graphify serve` → **Bots** tab) lists every bot, runs
+it on click (streaming live output), shows success/failure with exit codes,
+and keeps run history. Each run re-invokes the graphify binary, so the web
+and CLI paths execute identical code. Verified in-browser: graph-sync runs
+green with full health output; pr-review fails gracefully with the preflight
+diagnostic when claude auth is missing.
 
 ## Open decisions (need your input before building)
 

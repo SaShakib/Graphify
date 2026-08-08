@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"graphify/internal/bots"
 	"graphify/internal/store"
 )
 
@@ -19,14 +20,16 @@ import (
 type Server struct {
 	store    *store.Store
 	repoRoot string
-	webDir   string // optional: built frontend assets to serve at "/"; empty disables it
+	webDir   string        // optional: built frontend assets to serve at "/"; empty disables it
+	runner   *bots.Runner  // optional: enables the bot-control endpoints; nil disables them
 	mux      *http.ServeMux
 }
 
-// New builds a Server. webDir may be "" if the frontend isn't built —
-// the API still works, just with no UI at "/".
-func New(s *store.Store, repoRoot, webDir string) *Server {
-	srv := &Server{store: s, repoRoot: repoRoot, webDir: webDir, mux: http.NewServeMux()}
+// New builds a Server. webDir may be "" if the frontend isn't built (the
+// API still works, just with no UI at "/"); runner may be nil to disable
+// the bot-control endpoints.
+func New(s *store.Store, repoRoot, webDir string, runner *bots.Runner) *Server {
+	srv := &Server{store: s, repoRoot: repoRoot, webDir: webDir, runner: runner, mux: http.NewServeMux()}
 	srv.routes()
 	return srv
 }
@@ -44,6 +47,13 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/stats", s.handleStats)
 	s.mux.HandleFunc("GET /api/files/", s.handleFileSymbols)
 	s.mux.HandleFunc("GET /api/symbols/", s.handleSymbols)
+
+	if s.runner != nil {
+		s.mux.HandleFunc("GET /api/bots", s.handleBots)
+		s.mux.HandleFunc("POST /api/bots/", s.handleBotRun)   // /api/bots/:name/run
+		s.mux.HandleFunc("GET /api/bots/runs", s.handleBotRuns)
+		s.mux.HandleFunc("GET /api/bots/runs/", s.handleBotRunByID) // /api/bots/runs/:id
+	}
 
 	if s.webDir != "" {
 		fs := http.FileServer(http.Dir(s.webDir))
@@ -75,7 +85,7 @@ func spaHandler(dir string, fs http.Handler) http.HandlerFunc {
 func withCORS(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
