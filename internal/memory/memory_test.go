@@ -129,6 +129,27 @@ func TestGetListRemove(t *testing.T) {
 	}
 }
 
+func TestStemmingBridgesMorphology(t *testing.T) {
+	// The point of the v2 stemmer: a query and a doc that share only
+	// morphological variants ("resolved packages" vs "resolve package")
+	// must still match strongly at the word level, so the truly relevant
+	// entry beats a tangential one that happens to share a raw token.
+	e := NewHashingEmbedder(512)
+	q := e.Embed("how are call edges resolved between packages")
+	relevant := e.Embed("Call edge resolution\nCall edges resolve by receiver type within the same package.")
+	tangential := e.Embed("What graphify is\ngraphify parses a repo into a graph with symbols, call edges, and routes.")
+
+	sRel := Cosine(q, relevant)
+	sTan := Cosine(q, tangential)
+	if sRel <= sTan {
+		t.Fatalf("stemming should let the on-topic rule win: relevant=%.3f tangential=%.3f", sRel, sTan)
+	}
+	// And the win should be decisive, not marginal.
+	if sRel < 2*sTan {
+		t.Errorf("expected a decisive margin, got relevant=%.3f tangential=%.3f", sRel, sTan)
+	}
+}
+
 func TestSearchDropsZeroScore(t *testing.T) {
 	s := newTestStore(t)
 	now := time.Now()

@@ -26,6 +26,9 @@ import type {
   BotDef,
   BotRun,
   BotRunSummary,
+  MemoryEntry,
+  MemoryHit,
+  MemoryKind,
 } from "./types"
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true"
@@ -148,6 +151,45 @@ export async function getBotRuns(): Promise<BotRunSummary[]> {
 
 export async function getBotRun(id: string): Promise<BotRun> {
   return request<BotRun>(`/bots/runs/${encodeURIComponent(id)}`)
+}
+
+// --- Vector memory ---
+
+export async function getMemory(kind?: MemoryKind): Promise<MemoryEntry[]> {
+  const params = new URLSearchParams()
+  if (kind) params.set("kind", kind)
+  const query = params.toString()
+  return request<MemoryEntry[]>(`/memory${query ? `?${query}` : ""}`)
+}
+
+export async function searchMemory(
+  q: string,
+  kind?: MemoryKind,
+  top?: number,
+): Promise<MemoryHit[]> {
+  const params = new URLSearchParams({ q })
+  if (kind) params.set("kind", kind)
+  if (top !== undefined) params.set("top", String(top))
+  return request<MemoryHit[]>(`/memory/search?${params.toString()}`)
+}
+
+export async function addMemory(input: {
+  kind: MemoryKind
+  title: string
+  text: string
+  source?: string
+}): Promise<MemoryEntry> {
+  return request<MemoryEntry>("/memory", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  })
+}
+
+export async function deleteMemory(id: string): Promise<{ removed: boolean }> {
+  return request<{ removed: boolean }>(`/memory/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  })
 }
 
 // Encodes a repo-relative path for use after `/files/` while preserving `/`

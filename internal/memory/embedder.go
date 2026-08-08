@@ -45,8 +45,14 @@ func NewHashingEmbedder(dim int) *HashingEmbedder {
 	return &HashingEmbedder{dim: dim}
 }
 
-func (e *HashingEmbedder) Dim() int     { return e.dim }
-func (e *HashingEmbedder) Name() string { return "hashing-v1" }
+func (e *HashingEmbedder) Dim() int { return e.dim }
+
+// Name is versioned: it changes whenever the tokenization/weighting changes
+// the vectors, because Search only compares entries embedded by the same
+// Name. v2 added light stemming so morphological variants (resolve/
+// resolved, package/packages) match at the word level. Bumping it means old
+// entries must be re-added — acceptable for a rebuildable local store.
+func (e *HashingEmbedder) Name() string { return "hashing-v2" }
 
 var stopwords = map[string]bool{
 	"the": true, "a": true, "an": true, "and": true, "or": true, "of": true,
@@ -123,9 +129,32 @@ func tokenize(text string) []string {
 		if len(f) < 2 || stopwords[f] {
 			continue
 		}
-		out = append(out, f)
+		out = append(out, stem(f))
 	}
 	return out
+}
+
+// stem is a deliberately crude, conservative stemmer: it collapses the
+// common plural/tense/gerund suffixes and a trailing 'e' so that
+// morphological variants map to one token — "resolve", "resolved",
+// "resolves", "resolving" all become "resolv"; "package"/"packages" both
+// become "packag". It's applied identically to stored text and queries, so
+// only internal consistency matters, not linguistic correctness. This lets
+// full-weight WORD features (not just the noisy low-weight char trigrams)
+// bridge morphology, which materially improves retrieval — without it, a
+// query about "resolved packages" fails to match a rule about "resolve
+// package".
+func stem(w string) string {
+	for _, suf := range []string{"ing", "edly", "ed", "es", "s"} {
+		if len(w)-len(suf) >= 3 && strings.HasSuffix(w, suf) {
+			w = w[:len(w)-len(suf)]
+			break
+		}
+	}
+	if len(w) > 3 && strings.HasSuffix(w, "e") {
+		w = w[:len(w)-1]
+	}
+	return w
 }
 
 func charTrigrams(tok string) []string {

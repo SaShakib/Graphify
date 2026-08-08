@@ -117,3 +117,22 @@ export interface BotRun {
 
 // A run summary omits `output` for cheap list rendering.
 export type BotRunSummary = Omit<BotRun, "output">
+
+// --- Vector memory ---
+// Types copied verbatim from API_CONTRACT.md ("Vector memory").
+
+export type MemoryKind = "rule" | "lesson" | "business" | "overview" | "reference"
+
+export interface MemoryEntry {
+  id: string
+  kind: MemoryKind
+  title: string
+  text: string
+  source?: string
+  createdAt: string // RFC3339
+}
+
+export interface MemoryHit {
+  entry: MemoryEntry
+  score: number // cosine similarity, higher = more relevant
+}
