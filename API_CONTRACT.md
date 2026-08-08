@@ -109,6 +109,61 @@ Raw source lines `[start, end]` inclusive, 1-indexed, for the code panel.
 Repo-wide counts, shown in the UI header.
 → `{ files: number, symbols: number, edges: number, languages: Record<string, number> }`
 
+## Bot control (dashboard)
+
+Types:
+
+```ts
+interface BotDef {
+  name: string          // stable id, e.g. "graph-sync"
+  title: string         // human label, e.g. "Graph Sync"
+  description: string
+  kind: "go-native" | "python"
+  needsAuth: boolean    // true if it needs a working `claude` session
+  args: BotArg[]        // declared inputs the UI renders a form for
+}
+
+interface BotArg {
+  name: string          // e.g. "pr_number"
+  label: string
+  required: boolean
+  placeholder?: string
+}
+
+type RunStatus = "running" | "succeeded" | "failed"
+
+interface BotRun {
+  id: string            // opaque run id
+  bot: string           // BotDef.name
+  status: RunStatus
+  startedAt: string     // RFC3339
+  finishedAt?: string   // RFC3339, set when not running
+  exitCode?: number     // set when finished
+  output: string        // combined stdout+stderr so far (grows while running)
+}
+
+// A run summary omits `output` for cheap list rendering.
+type BotRunSummary = Omit<BotRun, "output">
+```
+
+### `GET /bots`
+List the available bots.
+→ `BotDef[]`
+
+### `POST /bots/:name/run`
+Start a bot run. Body: `{ args?: Record<string, string> }` (keys are
+`BotArg.name`). Returns the created run (status `"running"`).
+→ `BotRun`  · 400 if a required arg is missing, 404 if the bot is unknown.
+
+### `GET /bots/runs`
+Recent runs, newest first (summaries, no output).
+→ `BotRunSummary[]`
+
+### `GET /bots/runs/:id`
+One run with its full current output. The UI polls this while
+`status === "running"` to stream output.
+→ `BotRun`  · 404 if unknown.
+
 ## Errors
 
 Non-2xx responses body: `{ "error": string }`. 404 for unknown ids/paths, 400
