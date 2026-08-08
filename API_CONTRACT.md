@@ -164,6 +164,46 @@ One run with its full current output. The UI polls this while
 `status === "running"` to stream output.
 → `BotRun`  · 404 if unknown.
 
+## Vector memory
+
+Non-code knowledge (rules, lessons, business logic, overviews) stored as
+embeddings and searched semantically. Endpoints only exist when memory is
+enabled (`graphify serve`).
+
+```ts
+type MemoryKind = "rule" | "lesson" | "business" | "overview" | "reference"
+
+interface MemoryEntry {
+  id: string
+  kind: MemoryKind
+  title: string
+  text: string
+  source?: string
+  createdAt: string   // RFC3339
+}
+
+interface MemoryHit {
+  entry: MemoryEntry
+  score: number       // cosine similarity, higher = more relevant
+}
+```
+
+### `GET /memory?kind=:kind` (kind optional)
+List entries, newest first.
+→ `MemoryEntry[]`
+
+### `GET /memory/search?q=:query&kind=:kind&top=:n`
+Semantic search; returns the most relevant entries.
+→ `MemoryHit[]`
+
+### `POST /memory`
+Add an entry. Body: `{ kind, title, text, source? }`.
+→ `MemoryEntry`  · 400 on invalid kind or missing title/text.
+
+### `DELETE /memory/:id`
+Remove an entry.
+→ `{ removed: boolean }`  · 404 if unknown.
+
 ## Errors
 
 Non-2xx responses body: `{ "error": string }`. 404 for unknown ids/paths, 400

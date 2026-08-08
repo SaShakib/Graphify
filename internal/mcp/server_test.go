@@ -12,6 +12,7 @@ import (
 
 	"graphify/internal/graph"
 	"graphify/internal/indexer"
+	"graphify/internal/memory"
 	"graphify/internal/store"
 )
 
@@ -36,7 +37,7 @@ func setup(t *testing.T) (*client.Client, string) {
 		t.Fatal(err)
 	}
 
-	srv := New(s, root)
+	srv := New(s, root, nil)
 	c, err := client.NewInProcessClient(srv)
 	if err != nil {
 		t.Fatal(err)
@@ -46,6 +47,82 @@ func setup(t *testing.T) (*client.Client, string) {
 	}
 	t.Cleanup(func() { c.Close() })
 	return c, root
+}
+
+// setupWithMemory is like setup but also wires a vector memory store, so the
+// memory_* MCP tools are available.
+func setupWithMemory(t *testing.T) *client.Client {
+	t.Helper()
+	root := t.TempDir()
+	s, err := store.Open(filepath.Join(t.TempDir(), "graph.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+
+	mem, err := memory.Open(filepath.Join(t.TempDir(), "memory.db"), memory.NewHashingEmbedder(512))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { mem.Close() })
+
+	srv := New(s, root, mem)
+	c, err := client.NewInProcessClient(srv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Initialize(context.Background(), gomcp.InitializeRequest{}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { c.Close() })
+	return c
+}
+
+func TestMCPMemoryTools(t *testing.T) {
+	c := setupWithMemory(t)
+
+	// memory_add persists a rule.
+	added := callTool(t, c, "memory_add", map[string]any{
+		"kind":  "rule",
+		"title": "Edge resolution",
+		"text":  "Call edges resolve by receiver type within the same package; never across language families.",
+	})
+	if !contains(added, "Edge resolution") {
+		t.Fatalf("memory_add did not echo the entry: %s", added)
+	}
+
+	// memory_search finds it back.
+	var hits []memory.Hit
+	if err := json.Unmarshal([]byte(callTool(t, c, "memory_search", map[string]any{
+		"query": "how do call edges get resolved between packages",
+	})), &hits); err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) == 0 || hits[0].Title != "Edge resolution" {
+		t.Fatalf("memory_search did not recall the rule: %+v", hits)
+	}
+
+	// Invalid kind is rejected.
+	res, err := c.CallTool(context.Background(), gomcp.CallToolRequest{
+		Params: gomcp.CallToolParams{Name: "memory_add", Arguments: map[string]any{
+			"kind": "bogus", "title": "x", "text": "y",
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.IsError {
+		t.Fatal("expected an error result for an invalid memory kind")
+	}
+}
+
+func contains(s, sub string) bool {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
 }
 
 func callTool(t *testing.T, c *client.Client, name string, args map[string]any) string {

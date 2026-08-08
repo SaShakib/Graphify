@@ -31,7 +31,7 @@ func botTestServer(t *testing.T) *httptest.Server {
 	t.Cleanup(func() { s.Close() })
 
 	runner := bots.NewRunner(fake, root)
-	srv := New(s, root, "", runner)
+	srv := New(s, root, "", runner, nil)
 	ts := httptest.NewServer(srv)
 	t.Cleanup(ts.Close)
 	return ts
@@ -119,7 +119,7 @@ func TestBotsDisabledWhenNoRunner(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { s.Close() })
-	ts := httptest.NewServer(New(s, t.TempDir(), "", nil))
+	ts := httptest.NewServer(New(s, t.TempDir(), "", nil, nil))
 	t.Cleanup(ts.Close)
 
 	// With no runner, /api/bots isn't registered — the SPA/notfound handler

@@ -34,7 +34,7 @@ func setup(t *testing.T) (*httptest.Server, string) {
 		t.Fatal(err)
 	}
 
-	srv := New(s, root, "", nil)
+	srv := New(s, root, "", nil, nil)
 	ts := httptest.NewServer(srv)
 	t.Cleanup(ts.Close)
 	return ts, root

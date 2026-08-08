@@ -12,16 +12,20 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 
+	"graphify/internal/memory"
 	"graphify/internal/store"
 )
 
-// New builds an MCP server backed by s, resolving file-slice reads against
-// repoRoot.
-func New(s *store.Store, repoRoot string) *server.MCPServer {
+// New builds an MCP server backed by the code graph s (resolving file-slice
+// reads against repoRoot) and, if mem is non-nil, the vector memory —
+// letting an agent pull relevant codebase rules/lessons in the same
+// session it navigates the graph.
+func New(s *store.Store, repoRoot string, mem *memory.Store) *server.MCPServer {
 	srv := server.NewMCPServer("graphify", "0.1.0",
 		server.WithToolCapabilities(true),
 	)
@@ -66,6 +70,22 @@ func New(s *store.Store, repoRoot string) *server.MCPServer {
 	srv.AddTool(mcp.NewTool("get_stats",
 		mcp.WithDescription("Get repo-wide counts: files, symbols, edges, and a per-language breakdown."),
 	), getStatsHandler(s))
+
+	if mem != nil {
+		srv.AddTool(mcp.NewTool("memory_search",
+			mcp.WithDescription("Semantically search graphify's vector memory for the codebase RULES, LESSONS, business-logic notes, and overviews most relevant to a task. Call this before making changes to learn the project's primary rules and past lessons — it holds knowledge that is NOT in the code itself."),
+			mcp.WithString("query", mcp.Required(), mcp.Description("What you want relevant rules/lessons about, in natural language")),
+			mcp.WithString("kind", mcp.Description("Optional filter: rule, lesson, business, overview, reference")),
+		), memorySearchHandler(mem))
+
+		srv.AddTool(mcp.NewTool("memory_add",
+			mcp.WithDescription("Store a new lesson, rule, business-logic note, or overview in graphify's vector memory so it can be recalled later. Use this to persist something important learned during a task (e.g. a non-obvious rule, a bug's root cause) for future sessions."),
+			mcp.WithString("kind", mcp.Required(), mcp.Description("rule, lesson, business, overview, or reference")),
+			mcp.WithString("title", mcp.Required(), mcp.Description("Short title")),
+			mcp.WithString("text", mcp.Required(), mcp.Description("The knowledge to remember")),
+			mcp.WithString("source", mcp.Description("Where it came from (optional)")),
+		), memoryAddHandler(mem))
+	}
 
 	return srv
 }
@@ -175,6 +195,43 @@ func getStatsHandler(s *store.Store) server.ToolHandlerFunc {
 		}
 		return jsonResult(stats)
 	}
+}
+
+func memorySearchHandler(mem *memory.Store) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		query := mcp.ParseString(req, "query", "")
+		kind := mcp.ParseString(req, "kind", "")
+		hits, err := mem.Search(query, memory.Kind(kind), 5)
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("memory search failed", err), nil
+		}
+		return jsonResult(hits)
+	}
+}
+
+func memoryAddHandler(mem *memory.Store) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		kind := mcp.ParseString(req, "kind", "")
+		title := mcp.ParseString(req, "title", "")
+		text := mcp.ParseString(req, "text", "")
+		source := mcp.ParseString(req, "source", "")
+		if !validMemoryKind(kind) {
+			return mcp.NewToolResultError("invalid kind (want: rule, lesson, business, overview, reference)"), nil
+		}
+		e, err := mem.Add(memory.Kind(kind), title, text, source, time.Now())
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("memory add failed", err), nil
+		}
+		return jsonResult(e)
+	}
+}
+
+func validMemoryKind(k string) bool {
+	switch memory.Kind(k) {
+	case memory.KindRule, memory.KindLesson, memory.KindBusiness, memory.KindOverview, memory.KindRef:
+		return true
+	}
+	return false
 }
 
 func jsonResult(v any) (*mcp.CallToolResult, error) {

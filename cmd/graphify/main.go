@@ -27,6 +27,7 @@ re-reading the whole codebase.`,
 	root.AddCommand(newServeCmd())
 	root.AddCommand(newMCPCmd())
 	root.AddCommand(newBotCmd())
+	root.AddCommand(newMemoryCmd())
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "graphify:", err)

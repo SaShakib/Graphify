@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"graphify/internal/bots"
+	"graphify/internal/memory"
 	"graphify/internal/store"
 )
 
@@ -22,14 +23,15 @@ type Server struct {
 	repoRoot string
 	webDir   string        // optional: built frontend assets to serve at "/"; empty disables it
 	runner   *bots.Runner  // optional: enables the bot-control endpoints; nil disables them
+	memory   *memory.Store // optional: enables the vector-memory endpoints; nil disables them
 	mux      *http.ServeMux
 }
 
-// New builds a Server. webDir may be "" if the frontend isn't built (the
-// API still works, just with no UI at "/"); runner may be nil to disable
-// the bot-control endpoints.
-func New(s *store.Store, repoRoot, webDir string, runner *bots.Runner) *Server {
-	srv := &Server{store: s, repoRoot: repoRoot, webDir: webDir, runner: runner, mux: http.NewServeMux()}
+// New builds a Server. webDir may be "" (no UI at "/"), runner may be nil
+// (no bot endpoints), and mem may be nil (no memory endpoints) — the graph
+// API always works regardless.
+func New(s *store.Store, repoRoot, webDir string, runner *bots.Runner, mem *memory.Store) *Server {
+	srv := &Server{store: s, repoRoot: repoRoot, webDir: webDir, runner: runner, memory: mem, mux: http.NewServeMux()}
 	srv.routes()
 	return srv
 }
@@ -53,6 +55,13 @@ func (s *Server) routes() {
 		s.mux.HandleFunc("POST /api/bots/", s.handleBotRun)   // /api/bots/:name/run
 		s.mux.HandleFunc("GET /api/bots/runs", s.handleBotRuns)
 		s.mux.HandleFunc("GET /api/bots/runs/", s.handleBotRunByID) // /api/bots/runs/:id
+	}
+
+	if s.memory != nil {
+		s.mux.HandleFunc("GET /api/memory", s.handleMemoryList)
+		s.mux.HandleFunc("GET /api/memory/search", s.handleMemorySearch)
+		s.mux.HandleFunc("POST /api/memory", s.handleMemoryAdd)
+		s.mux.HandleFunc("DELETE /api/memory/", s.handleMemoryDelete) // /api/memory/:id
 	}
 
 	if s.webDir != "" {
@@ -85,7 +94,7 @@ func spaHandler(dir string, fs http.Handler) http.HandlerFunc {
 func withCORS(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)

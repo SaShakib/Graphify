@@ -15,10 +15,11 @@ func newMCPCmd() *cobra.Command {
 		Use:   "mcp [path]",
 		Short: "Parse a repo and run an MCP server over stdio for AI agents",
 		Long: `Runs an MCP server speaking JSON-RPC over stdio, exposing the code graph
-as tools (search_symbol, get_symbol, get_file_symbols, get_callers,
-get_callees, get_file_slice, get_tree, get_stats) so an AI agent can query
-the graph instead of reading whole files. Point an MCP-capable client at
-"graphify mcp <path>" as the command to launch.`,
+(search_symbol, get_symbol, get_file_symbols, get_callers, get_callees,
+get_file_slice, get_tree, get_stats) AND the vector memory (memory_search,
+memory_add) so an AI agent can query the graph instead of reading whole
+files, and recall the codebase's rules and lessons. Point an MCP-capable
+client at "graphify mcp <path>" as the command to launch.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// stdio IS the MCP transport — nothing but the protocol may
@@ -35,7 +36,18 @@ the graph instead of reading whole files. Point an MCP-capable client at
 			}
 			defer s.Close()
 
-			srv := mcp.New(s, repoRoot)
+			// Memory is best-effort: if it can't open, the graph tools
+			// still serve. mem == nil simply omits the memory_* tools.
+			mem, err := openMemory(repoRoot)
+			if err != nil {
+				cmd.Printf("memory unavailable (%v) — serving graph tools only\n", err)
+				mem = nil
+			}
+			if mem != nil {
+				defer mem.Close()
+			}
+
+			srv := mcp.New(s, repoRoot, mem)
 			return mcpserver.ServeStdio(srv)
 		},
 	}

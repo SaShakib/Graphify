@@ -48,7 +48,17 @@ func newServeCmd() *cobra.Command {
 				cmd.Println("Could not resolve the graphify binary path — bot dashboard disabled, graph UI still available.")
 			}
 
-			srv := server.New(s, repoRoot, resolvedWebDir, runner)
+			// Memory is best-effort too: nil just omits the memory endpoints.
+			mem, err := openMemory(repoRoot)
+			if err != nil {
+				cmd.Printf("Memory unavailable (%v) — serving without the memory tab.\n", err)
+				mem = nil
+			}
+			if mem != nil {
+				defer mem.Close()
+			}
+
+			srv := server.New(s, repoRoot, resolvedWebDir, runner, mem)
 			addr := fmt.Sprintf("localhost:%d", port)
 			url := "http://" + addr
 
