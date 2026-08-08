@@ -46,6 +46,62 @@ func TestBuildResolvesCallsAndContains(t *testing.T) {
 	}
 }
 
+func TestResolveParentsAcrossFilesInSamePackage(t *testing.T) {
+	// Regression test for a bug the graph-sync bot found in graphify's own
+	// code: a Go type's methods routinely live in different files of the
+	// same package than the type declaration. The parser sets a method's
+	// ParentID to a same-file guess (queries.go:Store), but the type is in
+	// store.go — so the contains edge dangled and the type's member list
+	// was split across a phantom parent. BuildFlat must repoint the method
+	// to the real type symbol by (directory, receiver name).
+	files := []*FileGraph{
+		{
+			FilePath: "pkg/store.go",
+			Language: "go",
+			Symbols: []Symbol{
+				{SymbolRef: SymbolRef{ID: "pkg/store.go:Store", Name: "Store", Kind: KindClass, FilePath: "pkg/store.go"}, Language: "go"},
+				{SymbolRef: SymbolRef{ID: "pkg/store.go:Store.Open", Name: "Open", Kind: KindMethod, FilePath: "pkg/store.go"}, Receiver: "Store", ParentID: "pkg/store.go:Store", Language: "go"},
+			},
+		},
+		{
+			FilePath: "pkg/queries.go",
+			Language: "go",
+			Symbols: []Symbol{
+				// Parser's same-file guess — the type isn't in this file.
+				{SymbolRef: SymbolRef{ID: "pkg/queries.go:Store.Search", Name: "Search", Kind: KindMethod, FilePath: "pkg/queries.go"}, Receiver: "Store", ParentID: "pkg/queries.go:Store", Language: "go"},
+			},
+		},
+	}
+
+	g := Build(files)
+
+	// The cross-file method must now be parented to the real type symbol.
+	if got := g.Symbols["pkg/queries.go:Store.Search"].ParentID; got != "pkg/store.go:Store" {
+		t.Fatalf("expected cross-file method reparented to pkg/store.go:Store, got %q", got)
+	}
+
+	// No dangling edges: every edge endpoint must exist as a symbol.
+	for _, e := range g.Edges {
+		if _, ok := g.Symbols[e.Source]; !ok {
+			t.Errorf("dangling edge source %q", e.Source)
+		}
+		if _, ok := g.Symbols[e.Target]; !ok {
+			t.Errorf("dangling edge target %q", e.Target)
+		}
+	}
+
+	// Both methods must be contained by the single real type.
+	contained := map[string]bool{}
+	for _, e := range g.Edges {
+		if e.Kind == EdgeContains && e.Source == "pkg/store.go:Store" {
+			contained[e.Target] = true
+		}
+	}
+	if !contained["pkg/store.go:Store.Open"] || !contained["pkg/queries.go:Store.Search"] {
+		t.Fatalf("expected both methods contained by pkg/store.go:Store, got %v", contained)
+	}
+}
+
 func TestResolveCallQualifiedNeverUsesRepoWideFallback(t *testing.T) {
 	// Regression test: "resp.Body.Close()" reduces to the bare name "Close"
 	// — the receiver (an unparsed stdlib type) is invisible to this tool.

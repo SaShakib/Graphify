@@ -29,6 +29,14 @@ func Build(files []*FileGraph) *Graph {
 // BuildFlat is the same resolution logic as Build but takes symbols/calls
 // directly rather than grouped by file — used by the store, which persists
 // and reloads them as flat rows rather than FileGraph batches.
+//
+// It also corrects each member symbol's ParentID: a parser sets a method's
+// parent to a same-file guess (filePath:TypeName), but in Go a type's
+// methods routinely live in different files of the same package than the
+// type declaration itself. resolveParents() fixes those to point at the
+// real type symbol wherever it's declared, so contains edges don't dangle
+// and a type's member list is complete. Callers that persist symbols (the
+// store) should write back the corrected ParentIDs from g.Symbols.
 func BuildFlat(symbols []Symbol, calls []UnresolvedCall) *Graph {
 	g := &Graph{Symbols: make(map[string]Symbol, len(symbols))}
 	byName := make(map[string][]Symbol)
@@ -36,7 +44,20 @@ func BuildFlat(symbols []Symbol, calls []UnresolvedCall) *Graph {
 	for _, sym := range symbols {
 		g.Symbols[sym.ID] = sym
 		byName[sym.Name] = append(byName[sym.Name], sym)
-		if sym.ParentID != "" {
+	}
+
+	resolveParents(g)
+
+	// Emit contains edges from the corrected parents, iterating the input
+	// slice for deterministic edge order. Skip any parent that still
+	// doesn't resolve (e.g. a method on a type declared in an unparsed
+	// package) rather than emitting a dangling edge.
+	for _, in := range symbols {
+		sym := g.Symbols[in.ID]
+		if sym.ParentID == "" {
+			continue
+		}
+		if _, ok := g.Symbols[sym.ParentID]; ok {
 			g.Edges = append(g.Edges, Edge{Source: sym.ParentID, Target: sym.ID, Kind: EdgeContains})
 		}
 	}
@@ -54,6 +75,37 @@ func BuildFlat(symbols []Symbol, calls []UnresolvedCall) *Graph {
 	}
 
 	return g
+}
+
+// resolveParents rewrites ParentID for member symbols whose parser-assigned
+// same-file parent doesn't exist, pointing them at the real enclosing type.
+// A type and its methods are always in the same package (directory), so the
+// receiver type is looked up by (directory, type name). Mutates g.Symbols
+// in place.
+func resolveParents(g *Graph) {
+	// Index declared types (class/interface) by "dir\x00Name".
+	typesByDirName := make(map[string]string)
+	for _, sym := range g.Symbols {
+		if sym.Kind == KindClass || sym.Kind == KindInterface {
+			typesByDirName[dirOf(sym.FilePath)+"\x00"+sym.Name] = sym.ID
+		}
+	}
+
+	for id, sym := range g.Symbols {
+		if sym.ParentID == "" {
+			continue
+		}
+		if _, ok := g.Symbols[sym.ParentID]; ok {
+			continue // parent already resolves — nothing to fix
+		}
+		if sym.Receiver == "" {
+			continue // no type name to resolve against
+		}
+		if realID, ok := typesByDirName[dirOf(sym.FilePath)+"\x00"+sym.Receiver]; ok && realID != id {
+			sym.ParentID = realID
+			g.Symbols[id] = sym
+		}
+	}
 }
 
 func resolveCall(from Symbol, name string, qualified bool, byName map[string][]Symbol) string {

@@ -43,8 +43,14 @@ set `ANTHROPIC_API_KEY`). Nothing in graphify's code can fix a login.
 | 1 | **PR Review** | review a PR diff for breaking changes, quality, duplication, unnecessary rewrites, pattern-mismatch, cross-boundary contract ("hallucinated") mismatches → posts a comment | ✅ built, 🔒 on claude auth |
 | 2 | **Commit Check** | same checks, per-commit granularity | ⬜ |
 | 3 | **Test Writer** | generate test cases for changed code | ⬜ |
-| 4 | **Graph Sync** | re-index the graph on push; verify graph integrity | ⬜ |
+| 4 | **Graph Sync** | re-index the graph on push; verify graph integrity (dangling edges, resolution quality) | ✅ Go-native, no auth needed |
 | 5 | **Anomaly Detector** | scan whole codebase for abnormalities / possible breakings | ⬜ |
+
+> The Graph Sync bot already earned its keep: on first run it found a real
+> correctness bug in graphify itself — a Go type's methods declared across
+> multiple files of a package were orphaned onto a phantom same-file parent
+> (12 dangling edges; `Store`'s member list was split 8/12). Fixed in
+> `internal/graph/builder.go` (`resolveParents`), with a regression test.
 | 6 | **Data Supply** | feed graph context to a coding agent | 🟡 this is the existing `graphify mcp` server; needs a documented "agent bootstrap" wrapper |
 | 7 | **Support Triage (MCP)** | pull GitHub issues/PRs + chat/Intercom, correlate to code, suggest fixes | ⬜ (GitHub ready; Intercom 🔒 needs auth) |
 | 8 | **Feature Verdict** | given a proposed feature: what rules it might break, more optimal options, final PRD, what to test so nothing breaks | ⬜ (needs the memory system below) |

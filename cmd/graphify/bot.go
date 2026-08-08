@@ -41,6 +41,7 @@ func newBotCmd() *cobra.Command {
 		Short: "Run an AI bot (see bots/README.md for the full list)",
 	}
 	cmd.AddCommand(newBotDoctorCmd())
+	cmd.AddCommand(newBotGraphSyncCmd())
 	cmd.AddCommand(newBotPRReviewCmd())
 	return cmd
 }

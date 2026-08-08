@@ -298,6 +298,81 @@ func (s *Store) Stats() (Stats, error) {
 	return st, rows.Err()
 }
 
+// Health is a graph-integrity + resolution-quality report, produced by the
+// graph-sync bot's "check graph" step.
+type Health struct {
+	Files              int
+	Symbols            int
+	Edges              int
+	UnresolvedCalls    int // call sites that couldn't be linked to a symbol
+	ResolvedCalls      int // "calls"/"handles" edges (i.e. resolved call sites)
+	ResolutionRate     float64
+	DanglingEdges      int         // edges whose source or target symbol no longer exists
+	TopUnresolvedFiles []FileCount // files with the most unresolved calls (parse-gap hotspots)
+}
+
+// FileCount pairs a file path with a count, for hotspot reporting.
+type FileCount struct {
+	Path  string
+	Count int
+}
+
+// Health computes graph integrity and call-resolution quality metrics.
+// DanglingEdges should always be 0 for a graph built by this tool (the
+// builder only emits edges between known symbols) — a non-zero count means
+// the DB was corrupted or written by something else, which is exactly the
+// kind of thing the graph-sync bot exists to catch.
+func (s *Store) Health() (Health, error) {
+	var h Health
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM files`).Scan(&h.Files); err != nil {
+		return h, err
+	}
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM symbols`).Scan(&h.Symbols); err != nil {
+		return h, err
+	}
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM edges`).Scan(&h.Edges); err != nil {
+		return h, err
+	}
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM unresolved_calls`).Scan(&h.UnresolvedCalls); err != nil {
+		return h, err
+	}
+	// A resolved call is an edge of kind 'calls' or 'handles' — those come
+	// from call sites. 'contains'/'implements'/'extends' are structural,
+	// not call-site resolutions, so they don't count toward the rate.
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM edges WHERE kind IN ('calls','handles')`).Scan(&h.ResolvedCalls); err != nil {
+		return h, err
+	}
+	totalCallSites := h.ResolvedCalls + h.UnresolvedCalls
+	if totalCallSites > 0 {
+		h.ResolutionRate = float64(h.ResolvedCalls) / float64(totalCallSites)
+	}
+
+	if err := s.db.QueryRow(`
+		SELECT COUNT(*) FROM edges e
+		WHERE NOT EXISTS (SELECT 1 FROM symbols s WHERE s.id = e.source)
+		   OR NOT EXISTS (SELECT 1 FROM symbols s WHERE s.id = e.target)
+	`).Scan(&h.DanglingEdges); err != nil {
+		return h, err
+	}
+
+	rows, err := s.db.Query(`
+		SELECT file_path, COUNT(*) AS n FROM unresolved_calls
+		GROUP BY file_path ORDER BY n DESC LIMIT 5
+	`)
+	if err != nil {
+		return h, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var fc FileCount
+		if err := rows.Scan(&fc.Path, &fc.Count); err != nil {
+			return h, err
+		}
+		h.TopUnresolvedFiles = append(h.TopUnresolvedFiles, fc)
+	}
+	return h, rows.Err()
+}
+
 func scanRefs(rows interface {
 	Next() bool
 	Scan(dest ...any) error

@@ -245,6 +245,24 @@ func (s *Store) RebuildEdges() error {
 	}
 	defer tx.Rollback()
 
+	// Persist any ParentIDs that BuildFlat corrected (a method whose type
+	// lives in another file of the same package), so Members/SymbolsInFile
+	// — which read parent_id straight from this table — agree with the
+	// edges we're about to write.
+	parentStmt, err := tx.Prepare(`UPDATE symbols SET parent_id = ? WHERE id = ?`)
+	if err != nil {
+		return err
+	}
+	defer parentStmt.Close()
+	for _, orig := range symbols {
+		corrected := g.Symbols[orig.ID].ParentID
+		if corrected != orig.ParentID {
+			if _, err := parentStmt.Exec(corrected, orig.ID); err != nil {
+				return err
+			}
+		}
+	}
+
 	if _, err := tx.Exec(`DELETE FROM edges`); err != nil {
 		return err
 	}

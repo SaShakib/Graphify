@@ -39,10 +39,14 @@ it respond with its tools). Every bot also runs these checks itself and
 refuses to start with a clear message if a link it needs is broken —
 rather than failing deep inside with a raw error.
 
-| Bot | Script | Trigger | Status |
-|---|---|---|---|
-| Doctor (preflight) | `preflight.py` | `graphify bot doctor` | ✅ working |
-| PR Review | `pr_review.py` | `graphify bot pr-review <pr>`, or automatically on push via `.github/workflows/pr-review-bot.yml` | ✅ working (needs `claude` auth) |
+Some bots are Go-native (pure graph work, no AI/auth needed — they live in
+`cmd/graphify/`); the AI-driven ones are Python scripts here in `bots/`.
+
+| Bot | Impl | Trigger | Needs AI? | Status |
+|---|---|---|---|---|
+| Doctor (preflight) | `preflight.py` | `graphify bot doctor` | no | ✅ working |
+| Graph Sync | Go | `graphify bot graph-sync`, or on push via `.github/workflows/graph-sync-bot.yml` | no | ✅ working |
+| PR Review | `pr_review.py` | `graphify bot pr-review <pr>`, or on push via `.github/workflows/pr-review-bot.yml` | yes | ✅ working (needs `claude` auth) |
 | Commit Check | — | — | planned |
 | Test Writer | — | — | planned |
 | Graph Sync | — | — | planned |
