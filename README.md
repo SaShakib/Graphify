@@ -73,6 +73,13 @@ All three share `--db` to override the default `.graphify/graph.db` path,
 and re-run incrementally: unchanged files (by content hash) aren't
 re-parsed, and files deleted since the last run are pruned.
 
+- `graphify bot pr-review <pr-number> [--dry-run]` — reviews an open PR's
+  diff with Claude (using graphify's own MCP tools as its source of repo
+  context) and posts findings as a comment. Runs automatically on every PR
+  push too, via `.github/workflows/pr-review-bot.yml`. See
+  [bots/README.md](bots/README.md) for auth setup and the full bot roster
+  (most are still planned).
+
 ## Development
 
 ```sh

@@ -26,6 +26,7 @@ re-reading the whole codebase.`,
 	root.AddCommand(newParseCmd())
 	root.AddCommand(newServeCmd())
 	root.AddCommand(newMCPCmd())
+	root.AddCommand(newBotCmd())
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "graphify:", err)

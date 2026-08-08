@@ -5,5 +5,9 @@
 /graphify
 /dist/
 
+# Python (bots/)
+__pycache__/
+*.pyc
+
 # OS
 .DS_Store
