@@ -47,6 +47,17 @@ Some bots are Go-native (pure graph work, no AI/auth needed — they live in
 | Doctor (preflight) | `preflight.py` | `graphify bot doctor` | no | ✅ working |
 | Graph Sync | Go | `graphify bot graph-sync`, or on push via `.github/workflows/graph-sync-bot.yml` | no | ✅ working |
 | PR Review | `pr_review.py` | `graphify bot pr-review <pr>`, or on push via `.github/workflows/pr-review-bot.yml` | yes | ✅ working (needs `claude` auth) |
+| Commit Check | `commit_check.py` | `graphify bot commit-check [ref]` | yes | ✅ working (needs `claude` auth) |
+| Test Writer | `test_writer.py` | `graphify bot test-writer <symbol-or-file>` | yes | ✅ working (needs `claude` auth) |
+| Anomaly Detector | `anomaly_scan.py` | `graphify bot anomaly-scan` | yes | ✅ working (needs `claude` auth) |
+| Feature Verdict | `feature_verdict.py` | `graphify bot feature-verdict "<feature>"` | yes | ✅ working (needs `claude` auth) |
+| Support Triage | `triage.py` | `graphify bot triage <issue#>` | yes | ✅ working — GitHub source (Intercom planned, needs auth) |
+| Data Supply | — | `graphify mcp <path>` | no | ✅ this *is* the MCP server; point any MCP client at it |
+
+The AI bots share `common.py` (index → hand claude the graphify MCP tools,
+which cover both the code graph and the vector memory → run a prompt →
+parse output). Add new AI bots by writing a thin script against that
+toolkit and registering them in `internal/bots/registry.go`.
 | Commit Check | — | — | planned |
 | Test Writer | — | — | planned |
 | Graph Sync | — | — | planned |

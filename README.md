@@ -73,12 +73,39 @@ All three share `--db` to override the default `.graphify/graph.db` path,
 and re-run incrementally: unchanged files (by content hash) aren't
 re-parsed, and files deleted since the last run are pruned.
 
-- `graphify bot pr-review <pr-number> [--dry-run]` — reviews an open PR's
-  diff with Claude (using graphify's own MCP tools as its source of repo
-  context) and posts findings as a comment. Runs automatically on every PR
-  push too, via `.github/workflows/pr-review-bot.yml`. See
-  [bots/README.md](bots/README.md) for auth setup and the full bot roster
-  (most are still planned).
+### Bots
+
+AI and graph bots that operate on the indexed repo:
+
+- `graphify bot doctor` — verify the whole chain (claude, gh, MCP) connects.
+- `graphify bot graph-sync` — re-index + integrity check (no AI, no auth).
+- `graphify bot pr-review <pr> [--dry-run]` — review a PR diff, post a comment.
+- `graphify bot commit-check [ref]` — review a single commit's diff.
+- `graphify bot test-writer <symbol|file> [--write]` — generate tests.
+- `graphify bot anomaly-scan [--focus X]` — audit the codebase for risks.
+- `graphify bot feature-verdict "<feature>"` — plan a feature vs. the codebase.
+- `graphify bot triage <issue#> [--comment]` — correlate an issue to code.
+
+All also runnable from the web **Bots** dashboard. The AI bots use graphify's
+MCP tools (graph + memory) as their repo context. See
+[bots/README.md](bots/README.md) for the full roster and auth, and
+[ORCHESTRATION.md](ORCHESTRATION.md) for the overall status.
+
+### Vector memory
+
+Non-code knowledge — codebase rules, lessons, business logic, overviews —
+stored as embeddings and searched semantically (the counterpart to the code
+graph). Kept in `.graphify/memory.db`.
+
+- `graphify memory add --kind rule --title "..." --text "..."`
+- `graphify memory search "how are call edges resolved"`
+- `graphify memory list` · `graphify memory rm <id>`
+
+Also available via the web **Memory** tab, the REST API (`/api/memory`), and
+MCP tools (`memory_search`/`memory_add`) so agents recall and persist
+knowledge. The default embedder is offline and dependency-free; set
+`GRAPHIFY_EMBED_URL`/`GRAPHIFY_EMBED_MODEL` (any OpenAI-compatible endpoint,
+e.g. a local Ollama) to upgrade to neural embeddings — no code change.
 
 ## Development
 

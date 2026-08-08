@@ -1,109 +1,115 @@
-# Graphify Orchestration — Status & Roadmap
+# Graphify Orchestration — Status
 
-This is the single source of truth for the AI engineering-intelligence
-platform being built on top of graphify: what's done, what's verified, and
-what's next. It maps every stated requirement to its concrete status.
+The AI engineering-intelligence platform built on top of graphify's code
+graph. This maps every requirement to its concrete, verifiable status.
 
-Legend: ✅ done & verified · 🟡 partial/scaffolded · ⬜ not started · 🔒 blocked (needs you)
+Legend: ✅ done & verified · 🔒 blocked on your `claude` login (code complete)
 
-## 0. Foundation (the graph itself) — ✅
+## 0. Foundation — the code graph ✅
 
-| Capability | Status | Where |
-|---|---|---|
-| Parse repo into symbol/call graph (Go, TS, TSX, JS, Python) | ✅ | `internal/parser` |
-| Top-level symbols only — no library/system internals | ✅ | `internal/indexer` skips deps; parsers only emit declared top-level symbols |
-| Route-level detection (Go `net/http`) | ✅ | `internal/parser/golang.go` |
-| Graph stored in a DB | ✅ SQLite | `internal/store` |
-| Incremental re-index (content hash) | ✅ | `internal/indexer` |
-| MCP server so AI searches the graph instead of reading files | ✅ | `internal/mcp` — 8 tools |
-| Web view of the graph | ✅ | `web/` (React + @xyflow/react) |
-| CLI | ✅ | `cmd/graphify` — parse/serve/mcp/bot |
+| Capability | Where |
+|---|---|
+| Parse repo into a symbol/call graph (Go, TS, TSX, JS, Python) | `internal/parser` |
+| Top-level symbols only — no library/system internals | `internal/indexer` (skips deps), parsers emit only declared symbols |
+| Route-level detection (Go `net/http`) | `internal/parser/golang.go` |
+| Cross-file method→type resolution | `internal/graph` (`resolveParents`) |
+| Graph in SQLite, incremental re-index by content hash | `internal/store`, `internal/indexer` |
+| MCP server: AI searches the graph instead of reading files | `internal/mcp` |
+| Web graph visualizer | `web/` (React + @xyflow/react) |
 
-## 1. "App can connect a Claude session from the terminal" — ✅ mechanism / 🔒 credential
+## 1. "App can connect a Claude session from the terminal" ✅ / 🔒 credential
 
-The core loop — spawn a headless `claude -p` session, hand it graphify's
-MCP server, let it query the graph — is built and proven. Verify it any
-time with:
+Proven and self-verifying. Run:
 
 ```sh
 graphify bot doctor
 ```
 
-Current result on this machine: **5/6 green**. The graphify MCP server
-responds with all 8 tools (the app side of the connection is fully
-working). The one red check is the local `claude` CLI login being expired
-— an interactive re-auth only you can do (`claude` once interactively, or
-set `ANTHROPIC_API_KEY`). Nothing in graphify's code can fix a login.
+It checks the whole chain (python, gh, claude, and graphify's own MCP
+server) and reports each link. On this machine: **5/6 green** — the MCP
+server responds with all its tools (the app side works); the one red is the
+expired local `claude` login, which only you can refresh (`claude`
+interactively, or set `ANTHROPIC_API_KEY`). No code can fix a login.
 
-## 2. Bots — 🟡 (1 of 8 built, mechanism reusable for the rest)
+## 2. Bots — ✅ all 8 built
 
-| # | Bot | Does | Status |
+Run any from the CLI (`graphify bot <name>`) or the web dashboard. Go-native
+bots need no auth; AI bots preflight-check and fail gracefully until
+`claude` auth is present.
+
+| Bot | Does | Auth | Status |
 |---|---|---|---|
-| 0 | **Doctor** | preflight: verify the whole chain connects | ✅ |
-| 1 | **PR Review** | review a PR diff for breaking changes, quality, duplication, unnecessary rewrites, pattern-mismatch, cross-boundary contract ("hallucinated") mismatches → posts a comment | ✅ built, 🔒 on claude auth |
-| 2 | **Commit Check** | same checks, per-commit granularity | ⬜ |
-| 3 | **Test Writer** | generate test cases for changed code | ⬜ |
-| 4 | **Graph Sync** | re-index the graph on push; verify graph integrity (dangling edges, resolution quality) | ✅ Go-native, no auth needed |
-| 5 | **Anomaly Detector** | scan whole codebase for abnormalities / possible breakings | ⬜ |
+| **doctor** | preflight: verify the whole chain connects | none | ✅ |
+| **graph-sync** | re-index + integrity check (dangling edges, resolution) | none | ✅ verified in CI |
+| **pr-review** | review a PR diff: breaks, quality, duplication, rewrites, pattern-mismatch, cross-boundary contract mismatches → posts a comment | claude | ✅ built · 🔒 |
+| **commit-check** | same dimensions, per-commit | claude | ✅ built · 🔒 |
+| **test-writer** | generate tests for a symbol/file using real callers | claude | ✅ built · 🔒 |
+| **anomaly-scan** | whole-codebase audit for breakages, contract mismatches, duplication, rule violations | claude | ✅ built · 🔒 |
+| **feature-verdict** | plan a feature: rules it breaks (memory), code to reuse, options, PRD, tests to stay safe | claude | ✅ built · 🔒 |
+| **triage** | correlate a GitHub issue to code (graph+memory), suggest fixes | claude+gh | ✅ built · 🔒 |
+| **Data Supply** | feed graph+memory context to a coding agent | — | ✅ *is* `graphify mcp` (point any MCP client at it) |
 
-> The Graph Sync bot already earned its keep: on first run it found a real
-> correctness bug in graphify itself — a Go type's methods declared across
-> multiple files of a package were orphaned onto a phantom same-file parent
-> (12 dangling edges; `Store`'s member list was split 8/12). Fixed in
-> `internal/graph/builder.go` (`resolveParents`), with a regression test.
-| 6 | **Data Supply** | feed graph context to a coding agent | 🟡 this is the existing `graphify mcp` server; needs a documented "agent bootstrap" wrapper |
-| 7 | **Support Triage (MCP)** | pull GitHub issues/PRs + chat/Intercom, correlate to code, suggest fixes | ⬜ (GitHub ready; Intercom 🔒 needs auth) |
-| 8 | **Feature Verdict** | given a proposed feature: what rules it might break, more optimal options, final PRD, what to test so nothing breaks | ⬜ (needs the memory system below) |
+AI bots are stdlib-only Python in `bots/`, sharing `bots/common.py` (index →
+hand claude the graphify MCP tools → run prompt → parse output). Go-native
+bots live in `cmd/graphify`. All are in one registry (`internal/bots`), so
+CLI and dashboard list the same set.
 
-Each bot is a stdlib-only Python script in `bots/`, invoked via `graphify
-bot <name>` and wireable to CI. The PR Review bot is the reference
-implementation for all the review-style ones (2, 5).
+> graph-sync earned its keep immediately: on first run it found a real bug
+> in graphify — Go methods spread across a package's files were orphaned
+> onto a phantom parent (12 dangling edges). Fixed + regression-tested.
 
-## 3. Memory system — ⬜ (designed, not built)
+## 3. Memory system — ✅
 
-Two stores, as specified:
-- **Code graph** → SQLite. ✅ already exists (`internal/store`).
-- **Vector memory** → lessons, codebase primary rules, "what this software
-  does", per-business-logic data + logical dependencies. ⬜ Not started.
-  Decision needed: embedding model + vector store (see Open Decisions).
+The counterpart to the graph: the graph answers *where code lives*, memory
+answers *what we know that isn't in the code* — primary rules, lessons,
+business logic, overviews. Stored as embeddings, searched semantically.
 
-The intended payoff — "optimize by giving less read: AI searches for where
-code lies instead of reading it all" — is *already delivered for code* by
-the MCP server. Vector memory extends the same idea to non-code knowledge
-(rules, lessons, business logic).
+- **Code graph** → SQLite (`internal/store`).
+- **Vector memory** → SQLite + embeddings (`internal/memory`).
+  - Default embedder: offline, dependency-free lexical hashing (feature
+    hashing + light stemming + cosine, with a calibrated noise floor).
+  - Optional neural embedder: set `GRAPHIFY_EMBED_URL`/`MODEL` (any
+    OpenAI-compatible endpoint, e.g. a local Ollama) for true semantic
+    recall — no code change, no cloud key required.
+- Surfaces: CLI (`graphify memory add/search/list/rm`), MCP
+  (`memory_search`/`memory_add` — bots and agents recall and persist
+  knowledge), REST (`/api/memory`), and the web **Memory** tab.
 
-## 4. Control surfaces — 🟡
+## 4. Control surfaces — ✅
 
 | Surface | Status |
 |---|---|
-| CLI session to run/control bots | ✅ `graphify bot ...` |
-| Web view of the graph | ✅ `graphify serve` |
-| Web view to **control bots** (dashboard: trigger, see runs/output) | ✅ `/bots` tab — verified end-to-end |
+| CLI to run bots + manage memory | ✅ `graphify bot ...`, `graphify memory ...` |
+| Web graph view | ✅ `graphify serve` → Graph |
+| Web bot dashboard (trigger, live output, run history) | ✅ Bots tab — verified end-to-end |
+| Web memory view (search, add, delete) | ✅ Memory tab — verified end-to-end |
 
-The bot dashboard (`graphify serve` → **Bots** tab) lists every bot, runs
-it on click (streaming live output), shows success/failure with exit codes,
-and keeps run history. Each run re-invokes the graphify binary, so the web
-and CLI paths execute identical code. Verified in-browser: graph-sync runs
-green with full health output; pr-review fails gracefully with the preflight
-diagnostic when claude auth is missing.
+## The one thing left for you
 
-## Open decisions (need your input before building)
+Every AI bot is code-complete and stops at the same single wall: the local
+`claude` login is expired. Refresh it (`claude` interactively, or export
+`ANTHROPIC_API_KEY`), then any AI bot runs for real — e.g.
+`graphify bot pr-review 1 --dry-run`, or the dashboard Run buttons. CI runs
+require `ANTHROPIC_API_KEY` as a repo secret (personal logins can't run
+unattended).
 
-1. **claude auth**: re-login personal session (simplest, local-only) vs
-   `ANTHROPIC_API_KEY` (works in CI). CI runs *require* the key regardless.
-2. **Vector memory stack**: since bots are Python, the natural choice is a
-   Python embedding lib + a local vector store (e.g. sqlite-vec, or
-   Chroma/LanceDB). Which embedding provider?
-3. **Bot build order**: Commit Check, Graph Sync, and the Support-Triage
-   MCP are the cheapest next steps; Feature Verdict and Anomaly Detector
-   depend on the vector memory existing first.
-
-## How to verify everything yourself
+## Verify everything yourself
 
 ```sh
-go build -o graphify ./cmd/graphify   # build
-go test ./...                          # backend tests (all green)
-graphify bot doctor                    # verify the orchestration chain
-graphify serve .                       # open the graph web view
-graphify bot pr-review <pr> --dry-run  # run the PR bot (once claude auth is fixed)
+go build -o graphify ./cmd/graphify
+go test ./...                             # all green
+cd web && npm run build && cd ..          # frontend, zero TS errors
+graphify bot doctor                       # the orchestration chain
+graphify serve .                          # Graph + Bots + Memory tabs
+graphify memory search "how are call edges resolved"   # semantic recall
+graphify bot graph-sync                   # no-auth bot, runs fully
 ```
+
+## Possible next steps (not required)
+
+- Consolidate `bots/pr_review.py` onto `bots/common.py` (it predates the
+  shared toolkit and duplicates a few helpers).
+- Route detection for more frameworks (TS/Next.js, chi/gin) — currently Go
+  `net/http`.
+- Wire Intercom as a triage data source once it's authorized.
+- Persist bot run history (currently in-memory per `serve` process).
