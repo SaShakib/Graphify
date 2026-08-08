@@ -27,9 +27,22 @@ authenticated:
 
 ## Bots
 
+Before running any bot, verify the chain is connectable:
+
+```sh
+graphify bot doctor
+```
+
+This checks python, `gh` (installed + authenticated), `claude` (installed
++ able to actually get a completion), and graphify's own MCP server (does
+it respond with its tools). Every bot also runs these checks itself and
+refuses to start with a clear message if a link it needs is broken —
+rather than failing deep inside with a raw error.
+
 | Bot | Script | Trigger | Status |
 |---|---|---|---|
-| PR Review | `pr_review.py` | `graphify bot pr-review <pr>`, or automatically on push via `.github/workflows/pr-review-bot.yml` | ✅ working |
+| Doctor (preflight) | `preflight.py` | `graphify bot doctor` | ✅ working |
+| PR Review | `pr_review.py` | `graphify bot pr-review <pr>`, or automatically on push via `.github/workflows/pr-review-bot.yml` | ✅ working (needs `claude` auth) |
 | Commit Check | — | — | planned |
 | Test Writer | — | — | planned |
 | Graph Sync | — | — | planned |

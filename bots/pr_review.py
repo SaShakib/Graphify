@@ -31,6 +31,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import preflight
+
 REVIEW_CRITERIA = """\
 Review this pull request diff. For each issue you find, judge it against
 ALL of these categories — not just "is this code correct":
@@ -205,9 +207,25 @@ def main() -> int:
     parser.add_argument("--repo", default=".", help="path to the local repo checkout (default: cwd)")
     parser.add_argument("--graphify-bin", default=None, help="path to the graphify binary (default: auto-detect)")
     parser.add_argument("--dry-run", action="store_true", help="print the review instead of posting it as a PR comment")
+    parser.add_argument("--skip-preflight", action="store_true", help="skip the connectivity checks (not recommended)")
     args = parser.parse_args()
 
     repo = Path(args.repo).resolve()
+
+    # Preflight first: a bot that fails halfway through with a raw claude
+    # 401 is worse than one that refuses to start with a clear reason. Only
+    # the links this bot actually uses need to pass.
+    if not args.skip_preflight:
+        checks = preflight.run_checks(repo, args.graphify_bin, include_mcp=True)
+        blocking = [c for c in checks if not c.ok and c.name in {"gh authenticated", "claude session connects", "graphify MCP server"}]
+        if blocking:
+            print("[pr-review] preflight failed — not starting the review:", file=sys.stderr)
+            for c in blocking:
+                print(f"  ✗ {c.name}: {c.detail}", file=sys.stderr)
+                if c.fix:
+                    print(f"      fix: {c.fix}", file=sys.stderr)
+            print("  (run `graphify bot doctor` for the full report)", file=sys.stderr)
+            return 2
 
     try:
         graphify_bin = find_graphify_bin(args.graphify_bin)
